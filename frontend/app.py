@@ -777,9 +777,10 @@ with col5:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # Main Navigation Tabs
-tab1, tab_scen, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab_scen, tab_driver, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Executive Operations & Agent Flow", 
     "🤖 AI Scenario Simulator",
+    "🛡️ Driver Safety Analytics",
     "🗺️ GIS Map & Google Satellite", 
     "🚦 Signal Controllers & Preemption", 
     "📢 Citizen Broadcast Feed", 
@@ -794,7 +795,7 @@ sc_sim = full_report.get("scenario_simulation", {})
 
 with tab1:
     st.markdown("#### 🤖 CrewAI Multi-Agent Execution Trace")
-    st.caption("Real-time decision pipeline across 7 specialized autonomous agents")
+    st.caption("Real-time decision pipeline across 8 specialized autonomous agents")
 
     ag1, ag2 = st.columns(2)
     with ag1:
@@ -814,7 +815,20 @@ with tab1:
         st.markdown(
             f"""
             <div class='agent-row-card'>
-                <div class='agent-title-text' style='color: #DC2626;'>3. Emergency Vehicle Agent</div>
+                <div class='agent-title-text' style='color: #E11D48;'>2. Driver Behavior & Safety Agent</div>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Safety Score:</b> <b style='color: {'#059669' if d_safe.get('safety_score', 100) >= 80 else ('#D97706' if d_safe.get('safety_score', 100) >= 60 else '#DC2626')};'>{d_safe.get('safety_score', 100)} / 100</b></p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Risk Level:</b> <span style='color: {'#DC2626' if d_safe.get('risk_level') in ['HIGH', 'CRITICAL'] else '#059669'}; font-weight: 700;'>{d_safe.get('risk_level', 'LOW')}</span></p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Total Infractions:</b> {d_safe.get('total_violations', 0)} detected</p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Primary Hazard:</b> {d_safe.get('primary_hazard', 'None')}</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            f"""
+            <div class='agent-row-card'>
+                <div class='agent-title-text' style='color: #DC2626;'>4. Emergency Vehicle Agent</div>
                 <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Priority Level:</b> {e_corr.get('priority_level')}</p>
                 <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Green Corridor:</b> {'ACTIVE 🚨' if e_corr.get('green_corridor_active') else 'INACTIVE 🟢'}</p>
                 <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Cleared Corridor:</b> {', '.join(e_corr.get('corridor_route', [])) or 'Standard'}</p>
@@ -826,7 +840,7 @@ with tab1:
         st.markdown(
             f"""
             <div class='agent-row-card'>
-                <div class='agent-title-text' style='color: #059669;'>5. Citizen Communication Agent</div>
+                <div class='agent-title-text' style='color: #059669;'>6. Citizen Communication Agent</div>
                 <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Broadcast Title:</b> {c_alt.get('title')}</p>
                 <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Severity Tier:</b> {c_alt.get('severity')}</p>
                 <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Reroute Guidance:</b> {c_alt.get('alternate_route') or 'None required'}</p>
@@ -834,6 +848,7 @@ with tab1:
             """,
             unsafe_allow_html=True
         )
+
 
     with ag2:
         st.markdown(
@@ -1050,7 +1065,169 @@ with tab_scen:
         unsafe_allow_html=True
     )
 
+with tab_driver:
+    st.markdown("#### 🛡️ Driver Behavior & Safety Intelligence Dashboard")
+    st.caption("Continuously analyzes driver telemetry, computes Driver Safety Scores (0-100), detects 8 hazard violation categories, and predicts unsafe driving probability.")
+
+    d_score = d_safe.get("safety_score", 100)
+    d_risk = d_safe.get("risk_level", "LOW")
+    d_tot_v = d_safe.get("total_violations", 0)
+    d_hazard = d_safe.get("primary_hazard", "None")
+    d_rec = d_safe.get("recommendation", "Maintain safe driving behavior")
+    d_pred = d_safe.get("risk_prediction", {})
+    d_viols = d_safe.get("violations", {})
+
+    if d_score >= 80:
+        score_color = "#059669"
+        score_border = "#34D399"
+    elif d_score >= 60:
+        score_color = "#D97706"
+        score_border = "#FBBF24"
+    else:
+        score_color = "#DC2626"
+        score_border = "#EF4444"
+
+    # 1. Driver Safety Metrics Cards
+    dcol1, dcol2, dcol3, dcol4 = st.columns(4)
+    with dcol1:
+        st.markdown(
+            f"""
+            <div class='metric-box' style='border-left: 5px solid {score_border}; background: #0F172A; color: white;'>
+                <div class='metric-head'>Driver Safety Score</div>
+                <div class='metric-body' style='color: {score_border}; font-size: 2.4rem;'>{d_score}</div>
+                <div class='metric-sub'>scale 0 to 100</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    with dcol2:
+        st.markdown(
+            f"""
+            <div class='metric-box' style='border-left: 4px solid {score_border}; background: #0F172A; color: white;'>
+                <div class='metric-head'>Risk Level Classification</div>
+                <div class='metric-body' style='font-size: 1.3rem; color: {score_border};'>{d_risk}</div>
+                <div class='metric-sub'>Safety Risk Tier</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    with dcol3:
+        st.markdown(
+            f"""
+            <div class='metric-box' style='background: #0F172A; color: white;'>
+                <div class='metric-head'>Total Violations Flagged</div>
+                <div class='metric-body' style='color: #F87171;'>{d_tot_v}</div>
+                <div class='metric-sub'>infraction count</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    with dcol4:
+        st.markdown(
+            f"""
+            <div class='metric-box' style='background: #0F172A; color: white;'>
+                <div class='metric-head'>Pre-Crash Risk Prediction</div>
+                <div class='metric-body' style='color: #38BDF8;'>{d_pred.get('probability', 'LOW')}</div>
+                <div class='metric-sub'>Future Hazard Risk</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # 2. Hazard & Recommendation Banner
+    st.markdown(
+        f"""
+        <div style="background: #0F172A; border: 2px solid {score_border}; border-radius: 10px; padding: 1.2rem; margin-bottom: 1.2rem; color: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="font-weight: 800; font-size: 1rem; color: #38BDF8;">🚨 PRIMARY DRIVING HAZARD: {d_hazard.upper()}</div>
+                <div style="font-size: 0.82rem; color: #94A3B8;">Target Vehicle ID: <b>{d_safe.get('vehicle_id', 'VH101')}</b></div>
+            </div>
+            <div style="font-size: 0.88rem; color: #E2E8F0; background: #1E293B; padding: 10px; border-radius: 6px; border-left: 4px solid #38BDF8;">
+                <b>🛡️ Safety Recommendation:</b> {d_rec}
+            </div>
+            <div style="margin-top: 8px; font-size: 0.82rem; color: #CBD5E1;">
+                <b>🔮 Risk Intelligence Prediction:</b> {d_pred.get('statement', 'Driver maintains LOW probability of future unsafe driving.')}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 3. 8 Violation Categories Breakdown Grid
+    st.markdown("##### 🚗 8 Driver Infraction Categories Breakdown")
+    v_col1, v_col2 = st.columns(2)
+
+    v_items = [
+        ("🛑 Sudden Hard Braking", d_viols.get("sudden_braking", 0)),
+        ("⛔ Wrong-Way Driving", d_viols.get("wrong_way", 0)),
+        ("🏎️ Speed Limit Breach", d_viols.get("overspeeding", 0)),
+        ("🔄 Unauthorized U-Turn", d_viols.get("illegal_u_turn", 0)),
+        ("🔀 Unsafe Lane Drift", d_viols.get("lane_violations", 0)),
+        ("🚗 Tailgating Distance Violation", 0),
+        ("📱 Distracted Driving (Phone Use)", 0),
+        ("🔴 Red Light Running", 0)
+    ]
+
+    with v_col1:
+        for label, count in v_items[:4]:
+            v_color = "#F87171" if count > 0 else "#34D399"
+            v_bg = "#7F1D1D" if count > 0 else "#064E3B"
+            st.markdown(
+                f"""
+                <div style="background: #0F172A; border: 1px solid #334155; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; color: white;">
+                    <span style="font-weight: 600; font-size: 0.88rem;">{label}</span>
+                    <span style="background: {v_bg}; color: {v_color}; font-weight: 800; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem;">{count} Detected</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+    with v_col2:
+        for label, count in v_items[4:]:
+            v_color = "#F87171" if count > 0 else "#34D399"
+            v_bg = "#7F1D1D" if count > 0 else "#064E3B"
+            st.markdown(
+                f"""
+                <div style="background: #0F172A; border: 1px solid #334155; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; color: white;">
+                    <span style="font-weight: 600; font-size: 0.88rem;">{label}</span>
+                    <span style="background: {v_bg}; color: {v_color}; font-weight: 800; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem;">{count} Detected</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+    # 4. Interactive Test Case Selector
+    st.markdown("<br>##### 🧪 Interactive Driver Behavior Telemetry Tester", unsafe_allow_html=True)
+    st.caption("Select a pre-configured driver telemetry scenario to evaluate the Driver Behavior & Safety Agent in real-time.")
+
+    from tools.driver_behavior_tools import DriverBehaviorTools
+    tc_list = DriverBehaviorTools.get_test_cases()
+    tc_names = [tc["case_name"] for tc in tc_list]
+    sel_tc_name = st.selectbox("Select Driver Telemetry Scenario", tc_names)
+
+    sel_tc = next(tc for tc in tc_list if tc["case_name"] == sel_tc_name)
+    eval_res = DriverBehaviorTools.evaluate_telemetry(sel_tc["telemetry"])
+
+    st.markdown(
+        f"""
+        <div style="background: #0F172A; border: 2px dashed #E11D48; border-radius: 10px; padding: 1.2rem; margin-top: 10px; color: white;">
+            <div style="font-weight: 700; color: #E11D48; font-size: 1rem; margin-bottom: 8px;">🛡️ EVALUATION RESULT FOR {sel_tc_name.upper()}</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; font-size: 0.88rem;">
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Vehicle ID:</b> <b style="color: #38BDF8;">{eval_res['vehicle_id']}</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Safety Score:</b> <b style="color: #34D399;">{eval_res['safety_score']}/100</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Risk Level:</b> <b style="color: #F87171;">{eval_res['risk_level']}</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Primary Hazard:</b> <b style="color: #FBBF24;">{eval_res['primary_hazard']}</b></div>
+            </div>
+            <div style="margin-top: 8px; font-size: 0.82rem; color: #94A3B8;"><b>Actionable Recommendation:</b> {eval_res['recommendation']}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 with tab_gis:
+
 
     st.markdown("#### 🗺️ Geospatial GIS Visualizer & Google Maps Layer")
     st.caption("Multi-engine geospatial mapping with Google Maps Satellite Hybrid and PyDeck 3D pillars")
