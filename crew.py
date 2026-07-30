@@ -139,7 +139,6 @@ class SmartTrafficCrew:
             notes="; ".join(a_sum.get("key_insights", []))
         )
 
-
         logger.info(f"Pipeline complete for {road_name}. Congestion: {c_pred.get('congestion_score')}, Emergency: {has_emergency}")
         return report_dict
 
@@ -190,6 +189,8 @@ class SmartTrafficCrew:
             signal_optimization["dynamic_increase_sec"] = 0
             signal_optimization["signal_mode"] = "STANDARD ADAPTIVE BALANCED (Restored)"
             signal_optimization["signal_after_display"] = "🟢 Green: 30s | 🟡 Yellow: 5s | 🔴 Red: 30s"
+            if "ai_explanation" not in signal_optimization or not isinstance(signal_optimization["ai_explanation"], dict):
+                signal_optimization["ai_explanation"] = {}
             signal_optimization["ai_explanation"]["reason"] = "Emergency situation resolved. Normal adaptive signal timing restored."
 
         # 7. Citizen Communication Agent
@@ -209,7 +210,6 @@ class SmartTrafficCrew:
             resolved=is_recovery
         )
         emergency_corridor["voice_script"] = voice_script
-
 
         # 8. Analytics Agent
         analytics_summary = process_analytics_rule_based(traffic_report, congestion_prediction, signal_optimization)
