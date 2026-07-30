@@ -644,13 +644,14 @@ st.markdown(
 # Emergency Alert Banners & Audio Announcements
 if e_corr.get("green_corridor_active"):
     emerg_type = e_corr.get('vehicle_type', 'Emergency Vehicle')
-    alert_title = "🚨 EMERGENCY GREEN CORRIDOR ACTIVE"
-    alert_msg = f"Priority override active for {emerg_type} on {selected_road}. All intersection signals locked green."
+    affected_lane = e_corr.get('affected_lane', 'Lane 1')
+    alert_title = f"🚨 EMERGENCY {emerg_type.upper()} GREEN CORRIDOR ACTIVE"
+    alert_msg = e_corr.get("voice_script") or f"Emergency alert. A {emerg_type} is approaching on {affected_lane} of {selected_road}. All intersection signals locked green!"
     
     st.markdown(
         f"""
         <div class='banner-critical'>
-            <b>🚨 EMERGENCY GREEN CORRIDOR ACTIVE:</b> Signal override locked for <b>{emerg_type}</b> on <b>{selected_road}</b>. Intersections cleared.
+            <b>🚨 EMERGENCY GREEN CORRIDOR ACTIVE:</b> Priority override locked for <b>{emerg_type}</b> on <b>{affected_lane}</b> of <b>{selected_road}</b>. Intersections cleared.
         </div>
         """,
         unsafe_allow_html=True
@@ -661,9 +662,9 @@ if e_corr.get("green_corridor_active"):
         st.components.v1.html(voice_html, height=0)
 
 elif t_rep.get("accident"):
-    alert_title = "⚠️ TRAFFIC INCIDENT DETECTED"
+    alert_title = "⚠️ TRAFFIC ACCIDENT DETECTED"
     detour_road = c_pred.get('recommended_alternate_roads', ['Service Lane'])[0]
-    alert_msg = f"Accident reported on {selected_road}. Detour advised via {detour_road}."
+    alert_msg = e_corr.get("voice_script") or f"Accident reported on {selected_road}. Rerouting traffic via {detour_road}."
     
     st.markdown(
         f"""
@@ -677,6 +678,7 @@ elif t_rep.get("accident"):
     voice_html = generate_voice_announcement_html(alert_title, alert_msg, enabled=enable_voice)
     if voice_html:
         st.components.v1.html(voice_html, height=0)
+
 
 # ⚡ AUTOMATIC AI CONDITION-TRIGGERED DISPATCH NOTIFICATION BANNER
 auto_status = full_report.get("auto_dispatch_status", {})
