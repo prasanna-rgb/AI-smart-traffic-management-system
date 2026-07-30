@@ -1,7 +1,7 @@
 """
 Voice AI Assistant & Smart City Emergency Audio Synthesizer.
 Uses Web Audio API for sirens/chimes and Web Speech API (HTML5 SpeechSynthesis) for natural voice announcements.
-Includes a 30-second alert cooldown to prevent redundant playback loops.
+Includes lane-aware emergency announcements and a 30-second alert cooldown to prevent redundant playback loops.
 """
 
 import time
@@ -11,22 +11,23 @@ _LAST_PLAYED_TIMES = {}
 COOLDOWN_SECONDS = 30
 
 
-def get_emergency_voice_script(road_name: str, event_type: str, vehicle_type: str = "AMBULANCE", resolved: bool = False) -> str:
-    """Generates clear, natural emergency voice scripts based on requirement specifications."""
+def get_emergency_voice_script(road_name: str, event_type: str, vehicle_type: str = "AMBULANCE", lane_name: str = "Lane 1", resolved: bool = False) -> str:
+    """Generates clear, natural emergency voice scripts with lane guidance."""
     if resolved:
-        return f"The emergency situation on {road_name} has been resolved. Normal traffic operations are being restored."
+        return f"The emergency situation on {road_name} has been resolved. Normal traffic operations are restored across all lanes."
     
     evt = event_type.upper()
     v_type = vehicle_type.upper()
+    lane_text = f"on {lane_name}" if lane_name else ""
 
     if "AMBULANCE" in v_type or evt == "MEDICAL EMERGENCY":
-        return f"Emergency alert. An ambulance is approaching on {road_name}. Please move to the left and keep the road clear."
+        return f"Emergency alert. An ambulance is approaching {lane_text} of {road_name}. Please move to the left, vacate {lane_name}, and keep the rescue corridor clear!"
     elif "FIRE" in v_type or evt == "FIRE EMERGENCY":
-        return f"Emergency alert. A fire emergency vehicle is approaching on {road_name}. Please clear the emergency corridor immediately."
+        return f"Emergency alert. A fire truck is approaching {lane_text} of {road_name}. Green signal light extended. Please clear {lane_name} immediately!"
     elif "POLICE" in v_type or evt == "POLICE EMERGENCY":
-        return f"Emergency alert. A police emergency vehicle is approaching on {road_name}. Please yield right of way and maintain clear lanes."
+        return f"Emergency alert. A police vehicle is approaching {lane_text} of {road_name}. Please yield right of way and maintain clear lanes."
     elif "ACCIDENT" in evt or "CRITICAL" in evt:
-        return f"Emergency alert. A serious accident has been detected on {road_name}. Please slow down and avoid this area. An emergency vehicle is approaching. Please keep the emergency lane clear."
+        return f"Emergency alert. A serious accident has been detected {lane_text} of {road_name}. Signal lights increased to clear stuck vehicles faster. Please keep the emergency rescue lane clear!"
     else:
         return f"Emergency alert. Special traffic advisory active on {road_name}. Please proceed with caution."
 

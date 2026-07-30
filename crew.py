@@ -205,9 +205,11 @@ class SmartTrafficCrew:
             road_name=telemetry.get('road_name', telemetry.get('road', 'Main Road')),
             event_type=emergency_corridor.get('event_type', 'NORMAL'),
             vehicle_type=emergency_corridor.get('vehicle_type', 'AMBULANCE'),
+            lane_name=emergency_corridor.get('affected_lane', 'Lane 1 (Emergency Priority Corridor)'),
             resolved=is_recovery
         )
         emergency_corridor["voice_script"] = voice_script
+
 
         # 8. Analytics Agent
         analytics_summary = process_analytics_rule_based(traffic_report, congestion_prediction, signal_optimization)

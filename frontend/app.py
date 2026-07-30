@@ -1113,14 +1113,39 @@ with tab2:
     st.markdown(
         f"""
         <div style="background: #0F172A; border: 1px solid #334155; border-radius: 8px; padding: 12px 16px; font-size: 0.88rem; color: #E2E8F0; margin-bottom: 1.2rem;">
-            <div style="margin-bottom: 6px;"><b>Emergency Detected:</b> <span style="color: {'#EF4444' if ai_exp.get('emergency_detected') else '#34D399'};">{"YES" if ai_exp.get('emergency_detected') else "NO"}</span> | <b>Traffic Density:</b> {ai_exp.get('traffic_density', 'MEDIUM')} | <b>Emergency Vehicle:</b> {ai_exp.get('emergency_vehicle', 'NONE')}</div>
-            <div style="margin-bottom: 6px;"><b>Action Taken:</b> <span style="color: #38BDF8; font-weight: 700;">{ai_exp.get('action', 'Maintain standard timing')}</span> | <b>Previous Green:</b> {ai_exp.get('previous_green_sec', 30)}s ➔ <b>New Green:</b> {ai_exp.get('new_green_sec', 50)}s</div>
+            <div style="margin-bottom: 6px;"><b>Emergency Detected:</b> <span style="color: {'#EF4444' if ai_exp.get('emergency_detected') else '#34D399'};">{"YES" if ai_exp.get('emergency_detected') else "NO"}</span> | <b>Traffic Density:</b> {ai_exp.get('traffic_density', 'MEDIUM')} | <b>Priority Rescue Lane:</b> <span style="color: #00F2FE;">{e_corr.get('affected_lane', 'Lane 1')}</span></div>
+            <div style="margin-bottom: 6px;"><b>Action Taken:</b> <span style="color: #38BDF8; font-weight: 700;">{ai_exp.get('action', 'Maintain standard timing')}</span> | <b>Throughput Speedup:</b> <span style="color: #34D399; font-weight: 700;">{s_opt.get('throughput_speedup', '+300%')}</span></div>
             <div style="margin-bottom: 6px; color: #94A3B8;"><b>Reason:</b> {ai_exp.get('reason', 'Normal operations')}</div>
             <div style="color: #34D399; font-size: 0.82rem;">✔️ {ai_exp.get('safety_notes', 'Safety interlocks verified')}</div>
         </div>
         """,
         unsafe_allow_html=True
     )
+
+    # 4. Lane-by-Lane Fast Clearance Breakdown
+    st.markdown("##### 🏎️ Lane-by-Lane Vehicle Clearance & Signal Light Duration")
+    lane_bd = s_opt.get("lane_breakdown", {
+        "Lane 1 (Emergency / Fast Rescue Lane)": {"green_sec": 90, "status": "🟢 FAST CLEARANCE LOCK"},
+        "Lane 2 (Inner Traffic Lane)": {"green_sec": 45, "status": "🟡 ADAPTIVE FLUSH"},
+        "Lane 3 (Outer Divert Lane)": {"green_sec": 30, "status": "🔵 BYPASS DIVERSION"}
+    })
+
+    lane_cols = st.columns(len(lane_bd))
+    for idx, (l_name, l_info) in enumerate(lane_bd.items()):
+        with lane_cols[idx]:
+            is_prio = ("FAST" in l_info.get("status", "") or "EMERGENCY" in l_name.upper())
+            card_border = "#EF4444" if (is_prio and has_emerg) else "#0284C7"
+            st.markdown(
+                f"""
+                <div style="background: #0F172A; border: 2px solid {card_border}; border-radius: 8px; padding: 12px; text-align: center; color: white; margin-bottom: 1.2rem;">
+                    <div style="font-weight: 700; font-size: 0.85rem; color: #38BDF8; margin-bottom: 6px;">{l_name}</div>
+                    <div style="font-size: 1.4rem; font-weight: 800; color: {'#34D399' if is_prio else '#FBBF24'};">{l_info.get('green_sec', 30)}s Green</div>
+                    <div style="font-size: 0.78rem; font-weight: 600; margin-top: 4px; color: #E2E8F0;">{l_info.get('status', '🟢 NORMAL')}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
 
     st.subheader("Intersections Grid Status Table")
     junction_data = []
