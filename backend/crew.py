@@ -1,6 +1,5 @@
 """
 CrewAI Orchestrator for Multi-Agent Smart Traffic Pipeline (Backend Package).
-Manages sequential agent execution, emergency response workflow, automatic recovery, and database persistence.
 """
 import json
 import logging
@@ -17,16 +16,18 @@ except Exception as e:
     Process = None
 
 from config.settings import get_llm
-from agents.traffic_monitor import create_traffic_monitor_agent, process_traffic_monitor_rule_based
-from agents.congestion_agent import create_congestion_agent, process_congestion_rule_based
-from agents.emergency_agent import create_emergency_agent, process_emergency_rule_based
-from agents.signal_agent import create_signal_agent, process_signal_rule_based
-from agents.citizen_agent import create_citizen_agent, process_citizen_rule_based
-from agents.analytics_agent import create_analytics_agent, process_analytics_rule_based
-from agents.driver_safety_agent import create_driver_safety_agent, process_driver_safety_rule_based
-from agents.weather_agent import create_weather_agent, process_weather_rule_based
-from agents.scenario_simulation_agent import create_scenario_simulation_agent, process_scenario_simulation_rule_based
+from backend.agents.traffic_monitor import create_traffic_monitor_agent, process_traffic_monitor_rule_based
+from backend.agents.congestion_agent import create_congestion_agent, process_congestion_rule_based
+from backend.agents.emergency_agent import create_emergency_agent, process_emergency_rule_based
+from backend.agents.signal_agent import create_signal_agent, process_signal_rule_based
+from backend.agents.citizen_agent import create_citizen_agent, process_citizen_rule_based
+from backend.agents.analytics_agent import create_analytics_agent, process_analytics_rule_based
+from backend.agents.driver_safety_agent import create_driver_safety_agent, process_driver_safety_rule_based
+from backend.agents.weather_agent import create_weather_agent, process_weather_rule_based
+from backend.agents.scenario_simulation_agent import create_scenario_simulation_agent, process_scenario_simulation_rule_based
+from backend.agents.emergency_resource_agent import create_emergency_resource_agent, process_emergency_resource_allocation_rule_based
 from tools.audio_announcer import get_emergency_voice_script
+
 from database.db import (
     save_traffic_input,
     save_traffic_report,
@@ -37,7 +38,8 @@ from database.db import (
     save_scenario_simulation
 )
 
-logger = logging.getLogger("smart_traffic_ai.crew")
+
+logger = logging.getLogger("smart_traffic_ai.backend.crew")
 
 
 class SmartTrafficCrew:
@@ -55,10 +57,8 @@ class SmartTrafficCrew:
         road_name = telemetry_input.get("road_name", telemetry_input.get("road", "Main Road"))
         logger.info(f"Starting Multi-Agent Traffic Pipeline for: {road_name}")
 
-        # Persist raw telemetry
         save_traffic_input(telemetry_input)
 
-        # Execute agents sequentially
         if self.llm is not None:
             try:
                 report_dict = self._run_crewai_agent_flow(telemetry_input)
@@ -69,17 +69,14 @@ class SmartTrafficCrew:
             logger.info("Using Rule-Based Engine (No Gemini API key or LLM fallback).")
             report_dict = self._run_rule_based_flow(telemetry_input)
 
-        # Extract agent responses
         t_rep = report_dict["traffic_report"]
         d_safe = report_dict.get("driver_safety", {})
         c_pred = report_dict["congestion_prediction"]
-        sc_sim = report_dict.get("scenario_simulation", {})
         e_corr = report_dict["emergency_corridor"]
         s_opt = report_dict["signal_optimization"]
         c_alt = report_dict["citizen_alerts"]
         a_sum = report_dict["analytics_summary"]
 
-        # 🚨 Handle Emergency Event Persistence & Recovery Logging
         has_emergency = e_corr.get("emergency_detected", False) or t_rep.get("accident_status", False)
         is_recovery = telemetry_input.get("accident_resolved", False) and telemetry_input.get("emergency_vehicle_passed", False)
 
@@ -142,12 +139,10 @@ class SmartTrafficCrew:
             notes="; ".join(a_sum.get("key_insights", []))
         )
 
-        logger.info(f"Pipeline complete for {road_name}. Congestion: {c_pred.get('congestion_score')}, Emergency: {has_emergency}")
         return report_dict
 
     def _run_rule_based_flow(self, telemetry: Dict[str, Any]) -> Dict[str, Any]:
         """Execute high-speed deterministic workflow across all agents."""
-        # Check Automatic Recovery condition
         is_recovery = telemetry.get("accident_resolved", False) and telemetry.get("emergency_vehicle_passed", False)
         
         if is_recovery:
@@ -156,19 +151,11 @@ class SmartTrafficCrew:
             telemetry["emergency_vehicle"] = False
             telemetry["emergency_vehicle_status"] = False
 
-        # 1. Traffic Monitoring Agent
         traffic_report = process_traffic_monitor_rule_based(telemetry)
-        
-        # 2. Driver Behavior & Safety Analytics Agent
         driver_safety = process_driver_safety_rule_based(telemetry)
-
-        # 3. Congestion Prediction Agent
         congestion_prediction = process_congestion_rule_based(traffic_report)
-        
-        # 3.5 Traffic Scenario Simulation & Decision Agent (Decision Intelligence Layer)
         scenario_simulation = process_scenario_simulation_rule_based(traffic_report, congestion_prediction)
         
-        # Save winning scenario simulation log
         if scenario_simulation and "winning_scenario_id" in scenario_simulation:
             try:
                 save_scenario_simulation({
@@ -187,8 +174,8 @@ class SmartTrafficCrew:
             except Exception as sc_err:
                 logger.warning(f"Failed to persist scenario simulation DB entry: {sc_err}")
 
-        # 4. Emergency Vehicle Agent
         emergency_corridor = process_emergency_rule_based(traffic_report, congestion_prediction)
+        emergency_resource = process_emergency_resource_allocation_rule_based(telemetry, emergency_corridor)
         
         if is_recovery:
             emergency_corridor["emergency_detected"] = False
@@ -198,10 +185,7 @@ class SmartTrafficCrew:
             emergency_corridor["priority_level"] = "NORMAL"
             emergency_corridor["signal_override_status"] = "INACTIVE: Emergency Resolved. Adaptive Traffic Signals Restored."
 
-        # 5. Smart Weather Adaptability Agent
         weather_adaptation = process_weather_rule_based(traffic_report)
-        
-        # 6. Signal Optimization Agent
         signal_optimization = process_signal_rule_based(traffic_report, congestion_prediction, emergency_corridor)
         if weather_adaptation.get("weather_green_extension_sec", 0) > 0:
             signal_optimization["recommended_green_time_sec"] += weather_adaptation["weather_green_extension_sec"]
@@ -218,7 +202,6 @@ class SmartTrafficCrew:
                 signal_optimization["ai_explanation"] = {}
             signal_optimization["ai_explanation"]["reason"] = "Emergency situation resolved. Normal adaptive signal timing restored."
 
-        # 7. Citizen Communication Agent
         citizen_alerts = process_citizen_rule_based(traffic_report, congestion_prediction, emergency_corridor)
         if is_recovery:
             citizen_alerts["title"] = f"✅ EMERGENCY RESOLVED - {telemetry.get('road', 'Main Road').upper()}"
@@ -226,7 +209,6 @@ class SmartTrafficCrew:
             citizen_alerts["message"] = f"The emergency situation on {telemetry.get('road', 'Main Road')} has been resolved. Normal traffic operations are being restored."
             citizen_alerts["alternate_route"] = None
 
-        # Generate Voice AI Emergency Script
         voice_script = get_emergency_voice_script(
             road_name=telemetry.get('road_name', telemetry.get('road', 'Main Road')),
             event_type=emergency_corridor.get('event_type', 'NORMAL'),
@@ -236,7 +218,6 @@ class SmartTrafficCrew:
         )
         emergency_corridor["voice_script"] = voice_script
 
-        # 8. Analytics Agent
         analytics_summary = process_analytics_rule_based(traffic_report, congestion_prediction, signal_optimization)
 
         return {
@@ -247,6 +228,7 @@ class SmartTrafficCrew:
             "congestion_prediction": congestion_prediction,
             "scenario_simulation": scenario_simulation,
             "emergency_corridor": emergency_corridor,
+            "emergency_resource": emergency_resource,
             "weather_adaptation": weather_adaptation,
             "signal_optimization": signal_optimization,
             "citizen_alerts": citizen_alerts,
@@ -260,6 +242,7 @@ class SmartTrafficCrew:
             "driver_safety": create_driver_safety_agent(),
             "congestion": create_congestion_agent(),
             "scenario_simulation": create_scenario_simulation_agent(),
+            "emergency_resource": create_emergency_resource_agent(),
             "emergency": create_emergency_agent(),
             "signal": create_signal_agent(),
             "citizen": create_citizen_agent(),

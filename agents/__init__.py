@@ -8,6 +8,7 @@ from .analytics_agent import create_analytics_agent, process_analytics_rule_base
 from .driver_safety_agent import create_driver_safety_agent, process_driver_safety_rule_based
 from .weather_agent import create_weather_agent, process_weather_rule_based
 from .scenario_simulation_agent import create_scenario_simulation_agent, process_scenario_simulation_rule_based
+from .emergency_resource_agent import create_emergency_resource_agent, process_emergency_resource_allocation_rule_based
 
 __all__ = [
     "create_traffic_monitor_agent",
@@ -27,5 +28,7 @@ __all__ = [
     "create_weather_agent",
     "process_weather_rule_based",
     "create_scenario_simulation_agent",
-    "process_scenario_simulation_rule_based"
+    "process_scenario_simulation_rule_based",
+    "create_emergency_resource_agent",
+    "process_emergency_resource_allocation_rule_based"
 ]

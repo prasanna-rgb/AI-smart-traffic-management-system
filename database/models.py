@@ -245,4 +245,51 @@ class ScenarioSimulationDB(Base):
         }
 
 
+class EmergencyResourceAllocationDB(Base):
+    """Emergency Resource Allocation DB Table."""
+    __tablename__ = "emergency_resource_allocations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    allocation_id = Column(String(100), nullable=False, index=True)
+    accident_id = Column(String(100), nullable=False, index=True)
+    ambulance_id = Column(String(100), nullable=False)
+    hospital_id = Column(String(100), nullable=False)
+    hospital_name = Column(String(150), nullable=False)
+    accident_location = Column(String(150), nullable=False)
+    ambulance_eta = Column(Integer, nullable=False)
+    hospital_eta = Column(Integer, nullable=False)
+    total_response_time = Column(Integer, nullable=False)
+    decision_score = Column(Float, nullable=False)
+    route = Column(String(200), nullable=False)
+    green_corridor_status = Column(String(50), default="ACTIVE")
+    allocation_status = Column(String(50), default="ALLOCATED")
+    details_json = Column(Text, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "allocation_id": self.allocation_id,
+            "accident_id": self.accident_id,
+            "selected_ambulance": {
+                "ambulance_id": self.ambulance_id,
+                "response_time_minutes": self.ambulance_eta
+            },
+            "selected_hospital": {
+                "hospital_id": self.hospital_id,
+                "hospital_name": self.hospital_name,
+                "travel_time_minutes": self.hospital_eta
+            },
+            "accident_location": self.accident_location,
+            "total_estimated_time": self.total_response_time,
+            "decision_score": self.decision_score,
+            "recommended_route": self.route,
+            "green_corridor_status": self.green_corridor_status,
+            "allocation_status": self.allocation_status,
+            "details": json.loads(self.details_json) if self.details_json else {}
+        }
+
+
+
 

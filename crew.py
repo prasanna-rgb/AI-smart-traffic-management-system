@@ -26,7 +26,9 @@ from agents.analytics_agent import create_analytics_agent, process_analytics_rul
 from agents.driver_safety_agent import create_driver_safety_agent, process_driver_safety_rule_based
 from agents.weather_agent import create_weather_agent, process_weather_rule_based
 from agents.scenario_simulation_agent import create_scenario_simulation_agent, process_scenario_simulation_rule_based
+from agents.emergency_resource_agent import create_emergency_resource_agent, process_emergency_resource_allocation_rule_based
 from tools.audio_announcer import get_emergency_voice_script
+
 from database.db import (
     save_traffic_input,
     save_traffic_report,
@@ -188,8 +190,10 @@ class SmartTrafficCrew:
                 logger.warning(f"Failed to persist scenario simulation DB entry: {sc_err}")
 
         # 4. Emergency Vehicle Agent
-
         emergency_corridor = process_emergency_rule_based(traffic_report, congestion_prediction)
+
+        # 4.5 Emergency Resource Allocation Agent
+        emergency_resource = process_emergency_resource_allocation_rule_based(telemetry, emergency_corridor)
         
         if is_recovery:
             emergency_corridor["emergency_detected"] = False
@@ -248,11 +252,13 @@ class SmartTrafficCrew:
             "congestion_prediction": congestion_prediction,
             "scenario_simulation": scenario_simulation,
             "emergency_corridor": emergency_corridor,
+            "emergency_resource": emergency_resource,
             "weather_adaptation": weather_adaptation,
             "signal_optimization": signal_optimization,
             "citizen_alerts": citizen_alerts,
             "analytics_summary": analytics_summary
         }
+
 
     def _run_crewai_agent_flow(self, telemetry: Dict[str, Any]) -> Dict[str, Any]:
         """Execute CrewAI multi-agent sequential pipeline."""
@@ -261,7 +267,9 @@ class SmartTrafficCrew:
             "driver_safety": create_driver_safety_agent(),
             "congestion": create_congestion_agent(),
             "scenario_simulation": create_scenario_simulation_agent(),
+            "emergency_resource": create_emergency_resource_agent(),
             "emergency": create_emergency_agent(),
+
             "signal": create_signal_agent(),
             "citizen": create_citizen_agent(),
             "analytics": create_analytics_agent()

@@ -777,9 +777,10 @@ with col5:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # Main Navigation Tabs
-tab1, tab_scen, tab_driver, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab_scen, tab_alloc, tab_driver, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Executive Operations & Agent Flow", 
     "🤖 AI Scenario Simulator",
+    "🏥 Emergency Resource Allocation",
     "🛡️ Driver Safety Analytics",
     "🗺️ GIS Map & Google Satellite", 
     "🚦 Signal Controllers & Preemption", 
@@ -791,11 +792,12 @@ tab1, tab_scen, tab_driver, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
 # Extract new agent data
 v2i = full_report.get("v2i_precrash", {})
 sc_sim = full_report.get("scenario_simulation", {})
+em_res = full_report.get("emergency_resource", {})
 
 
 with tab1:
     st.markdown("#### 🤖 CrewAI Multi-Agent Execution Trace")
-    st.caption("Real-time decision pipeline across 8 specialized autonomous agents")
+    st.caption("Real-time decision pipeline across 9 specialized autonomous agents")
 
     ag1, ag2 = st.columns(2)
     with ag1:
@@ -828,7 +830,20 @@ with tab1:
         st.markdown(
             f"""
             <div class='agent-row-card'>
-                <div class='agent-title-text' style='color: #DC2626;'>4. Emergency Vehicle Agent</div>
+                <div class='agent-title-text' style='color: #0284C7;'>4. Emergency Resource Allocation Agent</div>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Selected Ambulance:</b> <b style='color: #38BDF8;'>{em_res.get('selected_ambulance', {}).get('ambulance_id', 'AMB001')}</b> ({em_res.get('selected_ambulance', {}).get('response_time_minutes', 6)} min ETA)</p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Selected Hospital:</b> <b style='color: #34D399;'>{em_res.get('selected_hospital', {}).get('hospital_name', 'City Emergency Hospital')}</b></p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Total Response Time:</b> <b style='color: #FBBF24;'>{em_res.get('total_estimated_time', 15)} mins</b></p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Allocation Score:</b> {em_res.get('decision_score', 94.0)} / 100</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            f"""
+            <div class='agent-row-card'>
+                <div class='agent-title-text' style='color: #DC2626;'>5. Emergency Vehicle Agent</div>
                 <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Priority Level:</b> {e_corr.get('priority_level')}</p>
                 <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Green Corridor:</b> {'ACTIVE 🚨' if e_corr.get('green_corridor_active') else 'INACTIVE 🟢'}</p>
                 <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Cleared Corridor:</b> {', '.join(e_corr.get('corridor_route', [])) or 'Standard'}</p>
@@ -836,6 +851,7 @@ with tab1:
             """,
             unsafe_allow_html=True
         )
+
 
         st.markdown(
             f"""
@@ -1065,7 +1081,183 @@ with tab_scen:
         unsafe_allow_html=True
     )
 
+with tab_alloc:
+    st.markdown("#### 🏥 Emergency Resource Allocation Agent")
+    st.caption("Intelligently evaluates available fleet ambulances and nearby regional medical centers, scoring multi-attribute suitability (travel time, traffic, medical capabilities, ICU beds, trauma center status) to minimize emergency response times.")
+
+    alloc_data = full_report.get("emergency_resource") or {}
+    sel_amb = alloc_data.get("selected_ambulance", {"ambulance_id": "AMB001", "capability": "ADVANCED LIFE SUPPORT", "response_time_minutes": 6, "distance_km": 2.4, "score": 91.0})
+    sel_hosp = alloc_data.get("selected_hospital", {"hospital_id": "H002", "hospital_name": "City Emergency Hospital", "travel_time_minutes": 9, "icu_available": True, "trauma_center": True, "beds_available": 8, "score": 94.0})
+
+    # 1. 🏆 AI RESOURCE ALLOCATION BANNER
+    st.markdown(
+        f"""
+        <div style="background: linear-gradient(135deg, #0F172A 0%, #065F46 100%); border: 2px solid #10B981; border-radius: 12px; padding: 1.4rem; margin-bottom: 1.4rem; color: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 10px;">
+                <div>
+                    <span style="background: #10B981; color: white; padding: 4px 12px; border-radius: 6px; font-weight: 800; font-size: 0.82rem;">🏆 AI RECOMMENDED EMERGENCY ALLOCATION</span>
+                    <h3 style="margin: 8px 0 2px 0; color: #34D399; font-size: 1.25rem;">Dispatch {sel_amb.get('ambulance_id')} → Route to {sel_hosp.get('hospital_name')}</h3>
+                </div>
+                <div style="text-align: right; background: #064E3B; padding: 8px 16px; border-radius: 8px; border: 1px solid #34D399;">
+                    <div style="font-size: 0.75rem; color: #A7F3D0; font-weight: 600;">ALLOCATION SCORE</div>
+                    <div style="font-size: 1.6rem; font-weight: 900; color: #34D399;">{alloc_data.get('decision_score', 94.0)}<span style="font-size: 0.9rem; color: #94A3B8;">/100</span></div>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; font-size: 0.85rem; margin-top: 12px;">
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>Ambulance ETA:</b> <b style="color: #38BDF8;">{sel_amb.get('response_time_minutes', 6)} mins</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>Hospital ETA:</b> <b style="color: #FBBF24;">{sel_hosp.get('travel_time_minutes', 9)} mins</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>Total Response Time:</b> <b style="color: #34D399;">{alloc_data.get('total_estimated_time', 15)} mins</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>Green Corridor:</b> <b style="color: #34D399;">ACTIVE 🚨</b></div>
+            </div>
+            <div style="margin-top: 12px; font-size: 0.85rem; color: #CBD5E1; background: #0F172A; padding: 10px 14px; border-radius: 6px; border-left: 4px solid #34D399;">
+                <b>🧠 AI Allocation Explanation:</b> {alloc_data.get('reason', 'Optimal pairing selected based on response time, medical capability, and ICU availability.')}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 2. SELECTED AMBULANCE & HOSPITAL CARDS SIDE BY SIDE
+    acol1, acol2 = st.columns(2)
+    with acol1:
+        st.markdown(
+            f"""
+            <div style="background: #0F172A; border: 1px solid #38BDF8; border-radius: 10px; padding: 1rem; color: white;">
+                <div style="font-weight: 700; color: #38BDF8; font-size: 0.98rem; margin-bottom: 8px;">🚑 SELECTED AMBULANCE DETAILS</div>
+                <div style="font-size: 0.88rem; line-height: 1.6;">
+                    <div><b>Ambulance ID:</b> <span style="color: #38BDF8; font-weight: 800;">{sel_amb.get('ambulance_id')}</span></div>
+                    <div><b>Medical Capability:</b> {sel_amb.get('capability', 'ADVANCED LIFE SUPPORT')}</div>
+                    <div><b>Distance to Incident:</b> {sel_amb.get('distance_km', 2.4)} km</div>
+                    <div><b>Estimated Arrival (ETA):</b> <span style="color: #34D399; font-weight: 700;">{sel_amb.get('response_time_minutes')} minutes</span></div>
+                    <div><b>Status:</b> <span style="color: #34D399; font-weight: 700;">EN ROUTE TO ACCIDENT</span></div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    with acol2:
+        st.markdown(
+            f"""
+            <div style="background: #0F172A; border: 1px solid #34D399; border-radius: 10px; padding: 1rem; color: white;">
+                <div style="font-weight: 700; color: #34D399; font-size: 0.98rem; margin-bottom: 8px;">🏥 SELECTED HOSPITAL DETAILS</div>
+                <div style="font-size: 0.88rem; line-height: 1.6;">
+                    <div><b>Hospital Name:</b> <span style="color: #34D399; font-weight: 800;">{sel_hosp.get('hospital_name')}</span></div>
+                    <div><b>ICU Bed Availability:</b> <span style="color: {'#34D399' if sel_hosp.get('icu_available') else '#F87171'}; font-weight: 700;">{'YES (AVAILABLE)' if sel_hosp.get('icu_available') else 'NO'}</span></div>
+                    <div><b>Trauma Center:</b> {'YES (Level 1 Trauma)' if sel_hosp.get('trauma_center') else 'NO'}</div>
+                    <div><b>Hospital Travel Time:</b> <span style="color: #FBBF24; font-weight: 700;">{sel_hosp.get('travel_time_minutes')} minutes</span></div>
+                    <div><b>Beds Available:</b> {sel_hosp.get('beds_available', 8)} emergency beds</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # 3. AMBULANCE & HOSPITAL COMPARISON TABLES
+    st.markdown("<br>##### 📊 AI AMBULANCE & HOSPITAL SUITABILITY COMPARISON TABLES", unsafe_allow_html=True)
+    
+    col_tbl1, col_tbl2 = st.columns(2)
+    with col_tbl1:
+        st.markdown("###### 🚑 Ambulance Fleet Evaluation")
+        amb_opts = alloc_data.get("ambulance_options", [
+            {"ambulance_id": "AMB001", "eta_minutes": 6, "capability_rating": "HIGH", "traffic_density": "MEDIUM", "score": 91.0},
+            {"ambulance_id": "AMB002", "eta_minutes": 4, "capability_rating": "LOW", "traffic_density": "LOW", "score": 73.0},
+            {"ambulance_id": "AMB003", "eta_minutes": 8, "capability_rating": "HIGH", "traffic_density": "LOW", "score": 87.0}
+        ])
+        df_amb = pd.DataFrame(amb_opts)
+        if "ambulance_id" in df_amb.columns:
+            df_amb["AI_Status"] = df_amb["ambulance_id"].apply(lambda x: "🏆 SELECTED" if x == sel_amb.get("ambulance_id") else "Candidate")
+        st.dataframe(df_amb, use_container_width=True)
+
+    with col_tbl2:
+        st.markdown("###### 🏥 Regional Hospital Evaluation")
+        hosp_opts = alloc_data.get("hospital_options", [
+            {"hospital_id": "H001", "hospital_name": "City Emergency Hospital", "travel_time_minutes": 8, "icu_available": False, "trauma_center": True, "score": 65.0},
+            {"hospital_id": "H002", "hospital_name": "Metro Trauma Center", "travel_time_minutes": 9, "icu_available": True, "trauma_center": True, "score": 94.0},
+            {"hospital_id": "H003", "hospital_name": "St. Jude Memorial", "travel_time_minutes": 12, "icu_available": True, "trauma_center": False, "score": 72.0}
+        ])
+        df_hosp = pd.DataFrame(hosp_opts)
+        if "hospital_name" in df_hosp.columns:
+            df_hosp["AI_Status"] = df_hosp["hospital_name"].apply(lambda x: "🏆 SELECTED" if x == sel_hosp.get("hospital_name") else "Candidate")
+        st.dataframe(df_hosp, use_container_width=True)
+
+    # 4. REAL-TIME AMBULANCE RESPONSE TRACKER
+    st.markdown("<br>##### 🚨 REAL-TIME EMERGENCY RESPONSE TRACKER", unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div style="background: #0F172A; border: 1px solid #334155; border-radius: 10px; padding: 1rem; color: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div style="background: #065F46; color: #34D399; padding: 8px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 700;">
+                    1. DISPATCHED 🟢<br><span style="font-size: 0.75rem; color: #A7F3D0;">Ambulance {sel_amb.get('ambulance_id')} assigned</span>
+                </div>
+                <div style="font-size: 1.2rem; color: #34D399;">➔</div>
+                <div style="background: #1E293B; border: 1px solid #38BDF8; color: #38BDF8; padding: 8px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 700;">
+                    2. EN ROUTE TO ACCIDENT 🚨<br><span style="font-size: 0.75rem; color: #93C5FD;">ETA: {sel_amb.get('response_time_minutes')} mins</span>
+                </div>
+                <div style="font-size: 1.2rem; color: #94A3B8;">➔</div>
+                <div style="background: #1E293B; color: #94A3B8; padding: 8px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;">
+                    3. PATIENT PICKUP 🚑<br><span style="font-size: 0.75rem; color: #64748B;">On scene triage</span>
+                </div>
+                <div style="font-size: 1.2rem; color: #94A3B8;">➔</div>
+                <div style="background: #1E293B; color: #94A3B8; padding: 8px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;">
+                    4. EN ROUTE TO HOSPITAL 🏥<br><span style="font-size: 0.75rem; color: #64748B;">Hospital ETA: {sel_hosp.get('travel_time_minutes')} mins</span>
+                </div>
+                <div style="font-size: 1.2rem; color: #94A3B8;">➔</div>
+                <div style="background: #1E293B; color: #94A3B8; padding: 8px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;">
+                    5. ARRIVED AT EMERGENCY 🏁<br><span style="font-size: 0.75rem; color: #64748B;">Handover complete</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 5. DYNAMIC RE-ALLOCATION INTERACTIVE SANDBOX
+    st.markdown("<br>##### 🧪 DYNAMIC AUTOMATIC RE-ALLOCATION SANDBOX", unsafe_allow_html=True)
+    st.caption("Simulate ambulance delay or hospital capacity surge to observe real-time AI re-allocation.")
+
+    rcol1, rcol2 = st.columns(2)
+    with rcol1:
+        sim_amb_delay = st.checkbox("Simulate AMB001 Delay (Traffic Surge)", value=False)
+    with rcol2:
+        sim_hosp_icu_busy = st.checkbox("Simulate Metro Trauma Center ICU Saturation", value=False)
+
+    from tools.emergency_resource_tools import ResourceAllocatorEngine
+    acc_test_payload = {
+        "accident_id": "ACC102",
+        "road_name": selected_road,
+        "severity": "CRITICAL",
+        "latitude": 13.0827,
+        "longitude": 80.2707,
+        "traffic_density": "HIGH"
+    }
+
+    unavail_ambs = ["AMB001"] if sim_amb_delay else []
+    unavail_hosps = ["H002"] if sim_hosp_icu_busy else []
+
+    realloc_res = ResourceAllocatorEngine.allocate_resources(acc_test_payload, amb_unavailable=unavail_ambs, hosp_unavailable=unavail_hosps)
+
+    if sim_amb_delay or sim_hosp_icu_busy:
+        st.markdown(
+            f"""
+            <div style="background: #0F172A; border: 2px dashed #F59E0B; border-radius: 10px; padding: 1.2rem; margin-top: 10px; color: white;">
+                <div style="font-weight: 700; color: #F59E0B; font-size: 1rem; margin-bottom: 8px;">🔄 AUTOMATIC RE-ALLOCATION TRIGGERED</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; font-size: 0.88rem;">
+                    <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Reallocated Ambulance:</b> <b style="color: #38BDF8;">{realloc_res['selected_ambulance']['ambulance_id']}</b></div>
+                    <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Reallocated Hospital:</b> <b style="color: #34D399;">{realloc_res['selected_hospital']['hospital_name']}</b></div>
+                    <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>New Total ETA:</b> <b style="color: #FBBF24;">{realloc_res['total_estimated_time']} min</b></div>
+                    <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>New Score:</b> <b style="color: #34D399;">{realloc_res['decision_score']}/100</b></div>
+                </div>
+                <div style="margin-top: 8px; font-size: 0.82rem; color: #CBD5E1;"><b>Reallocation Reason:</b> {realloc_res['reason']}</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.caption("ℹ️ *Disclaimer: Recommended Emergency Resource Allocation - Final dispatch and hospital decisions remain with authorized emergency personnel.*")
+
 with tab_driver:
+
     st.markdown("#### 🛡️ Driver Behavior & Safety Intelligence Dashboard")
     st.caption("Continuously analyzes driver telemetry, computes Driver Safety Scores (0-100), detects 8 hazard violation categories, and predicts unsafe driving probability.")
 

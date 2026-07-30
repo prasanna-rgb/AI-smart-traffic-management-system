@@ -9,7 +9,7 @@ try:
 except Exception:
     Task = None
 
-from tools.traffic_data_fetcher import TrafficDataFetcher
+from backend.tools.traffic_data_fetcher import TrafficDataFetcher
 
 
 def create_traffic_tasks(agents_dict: dict, telemetry_input: dict) -> list:
@@ -125,8 +125,24 @@ def create_traffic_tasks(agents_dict: dict, telemetry_input: dict) -> list:
         )
         tasks_list.append(task_scenario)
 
-    # Task 4: Emergency Vehicle Priority
+    # Task 3.7: Emergency Resource Allocation
+    if "emergency_resource" in agents_dict:
+        task_emergency_resource = Task(
+            description=(
+                f"Evaluate accident information for {road_name}.\n\n{input_prompt}\n\n"
+                f"Fetch available fleet ambulances and nearby regional hospitals. Evaluate multi-attribute suitability scores based on "
+                f"travel time, traffic conditions, medical capability, ICU bed availability, and trauma center status. "
+                f"Select optimal ambulance and hospital, calculate total emergency response time (Ambulance ETA + Hospital ETA), and recommend optimal rescue route."
+            ),
+            expected_output=(
+                "JSON object with selected_ambulance, selected_hospital, total_estimated_time, "
+                "recommended_route, decision_score, reason, ambulance_options, and hospital_options."
+            ),
+            agent=agents_dict["emergency_resource"]
+        )
+        tasks_list.append(task_emergency_resource)
 
+    # Task 4: Emergency Vehicle Priority
     if "emergency" in agents_dict:
         task_emergency = Task(
             description="Inspect Traffic Report & Congestion data. If emergency vehicles are present, generate Green Corridor route and signal override commands.",

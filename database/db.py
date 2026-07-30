@@ -11,7 +11,48 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from config.settings import DATABASE_URL
-from database.models import Base, TrafficDataDB, TrafficReportDB, AlertDB, AnalyticsDB, DriverSafetyLogDB, EmergencyEventDB, ScenarioSimulationDB
+from database.models import Base, TrafficDataDB, TrafficReportDB, AlertDB, AnalyticsDB, DriverSafetyLogDB, EmergencyEventDB, ScenarioSimulationDB, EmergencyResourceAllocationDB
+
+def save_emergency_allocation(data: dict) -> Optional[EmergencyResourceAllocationDB]:
+    """Persist emergency resource allocation to database."""
+    try:
+        with get_db() as db:
+            amb = data.get("selected_ambulance", {})
+            hosp = data.get("selected_hospital", {})
+            record = EmergencyResourceAllocationDB(
+                timestamp=datetime.utcnow(),
+                allocation_id=data.get("allocation_id", f"ALLOC-{uuid.uuid4().hex[:6].upper()}"),
+                accident_id=data.get("accident_id", "ACC101"),
+                ambulance_id=amb.get("ambulance_id", "AMB001"),
+                hospital_id=hosp.get("hospital_id", "H001"),
+                hospital_name=hosp.get("hospital_name", "City Emergency Hospital"),
+                accident_location=data.get("accident_location", "Main Road"),
+                ambulance_eta=int(amb.get("response_time_minutes", 6)),
+                hospital_eta=int(hosp.get("travel_time_minutes", 9)),
+                total_response_time=int(data.get("total_estimated_time", 15)),
+                decision_score=float(data.get("decision_score", 90.0)),
+                route=data.get("recommended_route", "Main Road -> Hospital"),
+                green_corridor_status=data.get("green_corridor_status", "ACTIVE"),
+                allocation_status=data.get("allocation_status", "ALLOCATED"),
+                details_json=json.dumps(data)
+            )
+            db.add(record)
+            db.flush()
+            db.refresh(record)
+            return record
+    except Exception as e:
+        logger.error(f"Failed to save emergency allocation: {e}")
+        return None
+
+def get_recent_emergency_allocations(limit: int = 10):
+    """Retrieve recent emergency resource allocation logs."""
+    try:
+        with get_db() as db:
+            records = db.query(EmergencyResourceAllocationDB).order_by(EmergencyResourceAllocationDB.timestamp.desc()).limit(limit).all()
+            return [r.to_dict() for r in records]
+    except Exception:
+        return []
+
 
 def save_scenario_simulation(data: dict) -> Optional[ScenarioSimulationDB]:
     """Persist scenario evaluation log to database."""
@@ -52,18 +93,30 @@ def get_recent_scenario_simulations(limit: int = 20):
 
 logger = logging.getLogger("smart_traffic_ai.database")
 
-# Create engine
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-)
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+try:
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+    )
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+except Exception:
+    SQLITE_FALLBACK = "sqlite:///smart_traffic.db"
+    engine = create_engine(SQLITE_FALLBACK, connect_args={"check_same_thread": False})
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db():
-    """Initialize database schema tables."""
-    Base.metadata.create_all(bind=engine)
+    """Initialize database schema tables with automatic fallback."""
+    global engine, SessionLocal
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.warning(f"PostgreSQL connection fallback to SQLite: {e}")
+        SQLITE_FALLBACK = "sqlite:///smart_traffic.db"
+        engine = create_engine(SQLITE_FALLBACK, connect_args={"check_same_thread": False})
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        Base.metadata.create_all(bind=engine)
+
 
 
 @contextmanager
