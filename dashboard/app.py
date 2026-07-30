@@ -97,14 +97,72 @@ st.markdown("""
     }
 
 
-    /* Sidebar Contrast */
-    [data-testid="stSidebar"] {
+    /* Sidebar Container Styling (Dark High Contrast) */
+    [data-testid="stSidebar"], [data-testid="stSidebarNav"], section[data-testid="stSidebar"] {
         background-color: #111827 !important;
         border-right: 1px solid #1F2937 !important;
     }
-    [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label, [data-testid="stSidebar"] div {
+
+    [data-testid="stSidebar"] *, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label, [data-testid="stSidebar"] li, [data-testid="stSidebar"] strong, [data-testid="stSidebar"] div, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
         color: #F8FAFC !important;
     }
+
+    /* Sidebar Download Buttons & Action Buttons (Fixes White Button & Invisible Text) */
+    [data-testid="stSidebar"] button, 
+    [data-testid="stSidebar"] a, 
+    [data-testid="stSidebar"] [data-testid="stDownloadButton"] a, 
+    [data-testid="stSidebar"] [data-testid="stDownloadButton"] button,
+    .stDownloadButton button, 
+    .stDownloadButton a, 
+    button[kind="secondary"], 
+    button[kind="primary"], 
+    button[data-testid="baseButton-secondary"], 
+    button[data-testid="baseButton-primary"],
+    a[data-testid="stDownloadButton"] {
+        background-color: #1E293B !important;
+        background: #1E293B !important;
+        color: #38BDF8 !important;
+        border: 1px solid #00F2FE !important;
+        border-radius: 8px !important;
+        font-weight: 700 !important;
+        text-decoration: none !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: 0 2px 8px rgba(0, 242, 254, 0.15) !important;
+    }
+
+    [data-testid="stSidebar"] button *, 
+    [data-testid="stSidebar"] a *, 
+    [data-testid="stSidebar"] [data-testid="stDownloadButton"] *, 
+    .stDownloadButton *, 
+    button[kind="secondary"] *, 
+    button[kind="primary"] * {
+        color: #38BDF8 !important;
+    }
+
+    [data-testid="stSidebar"] button:hover, 
+    [data-testid="stSidebar"] a:hover, 
+    [data-testid="stSidebar"] [data-testid="stDownloadButton"] a:hover, 
+    [data-testid="stSidebar"] [data-testid="stDownloadButton"] button:hover,
+    .stDownloadButton button:hover, 
+    .stDownloadButton a:hover,
+    button[kind="secondary"]:hover, 
+    button[kind="primary"]:hover {
+        background-color: #00F2FE !important;
+        background: #00F2FE !important;
+        color: #0B0F19 !important;
+        border-color: #00F2FE !important;
+        box-shadow: 0 0 15px rgba(0, 242, 254, 0.5) !important;
+    }
+
+    [data-testid="stSidebar"] button:hover *, 
+    [data-testid="stSidebar"] a:hover *, 
+    [data-testid="stSidebar"] [data-testid="stDownloadButton"] a:hover *, 
+    .stDownloadButton button:hover * {
+        color: #0B0F19 !important;
+    }
+
 
     /* BaseWeb Dropdown Popover Menus & Selectboxes (Dark Mode Fix) */
     div[data-baseweb="popover"], div[data-baseweb="menu"], ul[role="listbox"], li[role="option"], [data-baseweb="popover"] * {
