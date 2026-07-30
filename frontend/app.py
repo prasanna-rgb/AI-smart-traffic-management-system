@@ -458,6 +458,19 @@ if sim_mode == "Manual Scenario Injection":
             st.rerun()
     st.sidebar.markdown("---")
     st.sidebar.markdown("#### 🚨 Quick Emergency Scenario Triggers")
+    if st.button("🚨 ACTIVATE GREEN CORRIDOR ALERT", use_container_width=True):
+        sim_data = {
+            "road": selected_road,
+            "vehicle_count": 150,
+            "average_speed": 12.0,
+            "accident": True,
+            "emergency_vehicle": True,
+            "emergency_type": "Ambulance",
+            "manual_green_corridor": True
+        }
+        st.session_state[road_telemetry_key] = sim_data
+        st.session_state[road_report_key] = run_traffic_crew(sim_data, registered_phone=reg_phone)
+        st.rerun()
     col_sc1, col_sc2 = st.sidebar.columns(2)
     with col_sc1:
         if st.button("🔴 Accident", use_container_width=True):
@@ -510,6 +523,7 @@ if sim_mode == "Manual Scenario Injection":
             st.session_state[road_telemetry_key] = sim_data
             st.session_state[road_report_key] = run_traffic_crew(sim_data, registered_phone=reg_phone)
             st.rerun()
+
 else:
     st.sidebar.caption("🌐 Currently pulling live real-time weather & traffic telemetry via Open-Meteo API & OpenStreetMap GPS coordinates.")
     if st.sidebar.button("⚡ Fetch Live Real-Time API Feed & Run Agents", use_container_width=True):
