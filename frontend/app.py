@@ -66,33 +66,64 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    html, body, [class*="css"], .stApp {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        background-color: #0B0F19 !important;
+        color: #F8FAFC !important;
     }
 
-    /* Technical Dark Base */
+    /* Technical Dark Base Container */
     .stApp, [data-testid="stAppViewContainer"] {
         background-color: #0B0F19 !important;
-        color: #F3F4F6 !important;
+        color: #F8FAFC !important;
     }
 
-    /* Universal Text Color Override for Technical Dark Contrast */
-    [data-testid="stAppViewContainer"] *, 
-    [data-testid="stHeader"] *, 
-    [data-testid="stSidebar"] *, 
-    [data-testid="stMarkdownContainer"] *, 
-    [data-testid="stWidgetLabel"] *, 
-    [data-testid="stCaptionContainer"] *,
-    [data-baseweb="radio"] *, 
-    [data-baseweb="select"] *, 
-    .stMarkdown, .stText, p, span, div, h1, h2, h3, h4, h5, h6, label, input, button, table, th, td {
-        color: #F3F4F6 !important;
+    /* Top Navigation & Headings */
+    h1, h2, h3, h4, h5, h6, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+    }
+
+    p, span, label, legend, [data-testid="stWidgetLabel"] {
+        color: #E2E8F0 !important;
     }
 
     /* Subheaders & Captions */
     .stCaption, small, [data-testid="stCaptionContainer"] * {
         color: #9CA3AF !important;
         font-weight: 500 !important;
+    }
+
+    /* BaseWeb Dropdown Popover Menus & Selectboxes (Fixes White Screen & Invisible Options) */
+    div[data-baseweb="popover"], div[data-baseweb="menu"], ul[role="listbox"], li[role="option"], [data-baseweb="popover"] *, [data-baseweb="menu"] * {
+        background-color: #1E293B !important;
+        color: #F8FAFC !important;
+        border-color: #334155 !important;
+    }
+    li[role="option"]:hover, div[role="option"]:hover, [data-baseweb="menu"] li:hover {
+        background-color: #0284C7 !important;
+        color: #FFFFFF !important;
+    }
+    div[data-baseweb="select"] > div, div[data-baseweb="select"] input {
+        background-color: #1E293B !important;
+        color: #F8FAFC !important;
+        border-color: #334155 !important;
+    }
+    div[data-baseweb="select"] svg {
+        fill: #F8FAFC !important;
+    }
+    div[data-baseweb="select"] p, div[data-baseweb="select"] span {
+        color: #F8FAFC !important;
+    }
+
+    /* Streamlit Alert Callouts (info, success, warning, error) */
+    div[data-testid="stAlert"] {
+        background-color: #1E293B !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
+    }
+    div[data-testid="stAlert"] p, div[data-testid="stAlert"] div, div[data-testid="stAlert"] span {
+        color: #F8FAFC !important;
     }
 
     /* Top Cyber Navigation Bar Header */
@@ -228,47 +259,36 @@ st.markdown("""
         border-right: 1px solid #1F2937 !important;
     }
 
-    [data-testid="stSidebar"] * {
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label {
         color: #F3F4F6 !important;
     }
 
-    /* Selectbox, Radio, Slider Labels */
-    .stSelectbox label, .stRadio label, .stCheckbox label, .stSlider label, [data-testid="stWidgetLabel"] {
-        color: #F3F4F6 !important;
-        font-weight: 700 !important;
+    /* Form Text Inputs & Text Areas */
+    div[data-baseweb="input"] input, textarea, div[data-baseweb="textarea"] textarea {
+        background-color: #1E293B !important;
+        color: #F8FAFC !important;
+        border: 1px solid #334155 !important;
+        font-size: 0.95rem !important;
     }
 
-    /* Selectbox dropdown selection box */
-    [data-baseweb="select"] * {
-        color: #F3F4F6 !important;
-        background-color: #1F2937 !important;
+    /* Code Blocks & Pre Blocks */
+    div[data-testid="stCodeBlock"], pre, code, .stCodeBlock code {
+        background-color: #0F172A !important;
+        color: #38BDF8 !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
     }
-
-    /* Input & Text Fields */
-    input, textarea {
-        background-color: #1F2937 !important;
-        color: #F3F4F6 !important;
-        border: 1px solid #374151 !important;
+    div[data-testid="stCodeBlock"] * {
+        color: #38BDF8 !important;
     }
 
     /* Streamlit DataFrame Tables */
-    .stDataFrame, [data-testid="stTable"], table {
+    [data-testid="stDataFrame"], div[data-testid="stTable"], table {
         background-color: #111827 !important;
         color: #F3F4F6 !important;
     }
 
-    .stDataFrame *, table * {
-        color: #F3F4F6 !important;
-    }
-
-    /* Info / Warning Boxes */
-    .stAlert, [data-testid="stNotification"] {
-        background-color: #1F2937 !important;
-        color: #F3F4F6 !important;
-        border: 1px solid #374151 !important;
-    }
-
-    .stAlert * {
+    [data-testid="stDataFrame"] *, table * {
         color: #F3F4F6 !important;
     }
 
@@ -295,6 +315,7 @@ st.markdown("""
         font-weight: 800 !important;
         box-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
     }
+
 
     .stTabs [aria-selected="true"] * {
         color: #0B0F19 !important;
@@ -864,7 +885,7 @@ with tab3:
         sev_bg = "#25D366" if latest_alert.get("severity") == "INFO" else ("#34B7F1" if latest_alert.get("severity") == "WARNING" else "#DC2626")
 
         whatsapp_html = f"""
-        <div style="width: 100%; max-width: 360px; border-radius: 20px; overflow: hidden; border: 4px solid #1E293B; box-shadow: 0 10px 25px rgba(0,0,0,0.15); font-family: Inter, sans-serif; margin: 0 auto;">
+        <div style="width: 100%; max-width: 360px; border-radius: 20px; overflow: hidden; border: 4px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5); font-family: Inter, sans-serif; margin: 0 auto; background: #0F172A;">
             <!-- Phone Notch Header -->
             <div style="background: #075E54; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 10px;">
                 <div style="width: 36px; height: 36px; border-radius: 50%; background: #128C7E; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
@@ -877,20 +898,20 @@ with tab3:
             </div>
             
             <!-- Chat Wall -->
-            <div style="background: #E5DDD5; padding: 14px; min-height: 280px; display: flex; flex-direction: column; gap: 10px;">
-                <div style="align-self: center; background: rgba(225,245,254,0.9); color: #0284C7 !important; padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 600;">
+            <div style="background: #0B0F19; padding: 14px; min-height: 280px; display: flex; flex-direction: column; gap: 10px;">
+                <div style="align-self: center; background: #1E293B; color: #38BDF8 !important; padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 600; border: 1px solid #334155;">
                     🔒 End-to-end encrypted official advisory feed
                 </div>
                 
                 <!-- Incoming Broadcast Bubble -->
-                <div style="background: #FFFFFF; border-radius: 8px 8px 8px 0px; padding: 10px 12px; max-width: 90%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); border-left: 4px solid {sev_bg};">
+                <div style="background: #1E293B; border-radius: 8px 8px 8px 0px; padding: 10px 12px; max-width: 90%; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border-left: 4px solid {sev_bg}; border: 1px solid #334155;">
                     <div style="font-weight: 800; font-size: 12px; color: {sev_bg} !important; margin-bottom: 4px;">
                         {latest_alert.get('title', 'TRAFFIC ADVISORY')}
                     </div>
-                    <div style="font-size: 12px; color: #1E293B !important; line-height: 1.4;">
+                    <div style="font-size: 12px; color: #F8FAFC !important; line-height: 1.4;">
                         {latest_alert.get('message', 'Drive safely.')}
                     </div>
-                    {f"<div style='margin-top: 6px; padding: 4px 8px; background: #F1F5F9; border-radius: 4px; font-size: 11px; color: #2563EB !important; font-weight: 600;'>🛣️ Reroute: {latest_alert.get('alternate_route')}</div>" if latest_alert.get('alternate_route') else ""}
+                    {f"<div style='margin-top: 6px; padding: 4px 8px; background: #0F172A; border-radius: 4px; font-size: 11px; color: #60A5FA !important; font-weight: 600;'>🛣️ Reroute: {latest_alert.get('alternate_route')}</div>" if latest_alert.get('alternate_route') else ""}
                     <div style="text-align: right; font-size: 9px; color: #94A3B8 !important; margin-top: 4px;">
                         {latest_alert.get('timestamp', 'Just now')[:16]} <span style="color: #34B7F1;">✓✓</span>
                     </div>
@@ -899,6 +920,7 @@ with tab3:
         </div>
         """
         st.components.v1.html(whatsapp_html, height=360)
+
 
         st.markdown("---")
         st.markdown("##### 📡 Cellular SMS Dispatcher (No WhatsApp Account Needed)")

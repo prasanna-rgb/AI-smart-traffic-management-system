@@ -91,9 +91,10 @@ st.markdown("""
         font-weight: 700 !important;
     }
 
-    p, span, label, div, legend {
+    p, span, label, legend, [data-testid="stWidgetLabel"] {
         color: #E2E8F0 !important;
     }
+
 
     /* Sidebar Contrast */
     [data-testid="stSidebar"] {
