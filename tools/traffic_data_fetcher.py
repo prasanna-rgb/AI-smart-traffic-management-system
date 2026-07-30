@@ -216,7 +216,9 @@ class TrafficDataFetcher:
             "delay": delay,
             "accident_status": sim_data.get("accident", False),
             "emergency_vehicle_status": sim_data.get("emergency_vehicle", False),
+            "emergency_type": sim_data.get("emergency_type", "AMBULANCE" if sim_data.get("emergency_vehicle") else "NONE"),
             "road_status": "CLOSED" if sim_data.get("accident") else "OPEN",
+
             "weather": str(sim_data.get("weather", "CLEAR")).upper(),
             "timestamp": datetime.utcnow().isoformat(),
             "time_display": now_str,

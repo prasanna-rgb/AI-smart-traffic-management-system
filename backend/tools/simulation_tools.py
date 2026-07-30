@@ -1,6 +1,7 @@
 """
 Traffic Telemetry Simulation Tools (Backend Package).
 Simulates realistic, time-of-day aware CCTV / IoT sensor telemetry with continuous dynamic variations.
+Includes high-reliability emergency vehicle & accident event triggers.
 """
 import random
 from datetime import datetime
@@ -19,7 +20,7 @@ class TrafficSimulator:
 
     @staticmethod
     def generate_random_telemetry(road: str = None) -> Dict[str, Any]:
-        """Generate time-aware dynamic real-time traffic data."""
+        """Generate time-aware dynamic real-time traffic data with active emergency vehicle triggers."""
         target_road = road if road else random.choice(ROADS)
         now = datetime.now()
         hour = now.hour
@@ -49,7 +50,6 @@ class TrafficSimulator:
         # Apply stateful smooth variation relative to previous fetch cycle if available
         prev_state = _PREVIOUS_ROAD_STATES.get(target_road)
         if prev_state:
-            # Smooth transition: ±5-15 vehicles, ±2-5 km/h
             vc_delta = random.randint(-12, 16)
             vehicle_count = max(10, prev_state.get("vehicle_count", base_vc) + vc_delta)
 
@@ -63,17 +63,17 @@ class TrafficSimulator:
             avg_speed = round(base_speed, 1)
             occupancy = round(base_occupancy, 1)
 
-        # Dynamic events (Accident 10%, Emergency 10%)
+        # Active Dynamic Emergency & Accident Triggers (45% total event probability)
         event_roll = random.random()
-        if event_roll < 0.10:
+        if event_roll < 0.20:
             accident = True
-            emergency_vehicle = random.choice([True, False])
-            emergency_type = "Ambulance" if emergency_vehicle else None
-            vehicle_count += random.randint(15, 35)
-            avg_speed = max(8.0, avg_speed - 12.0)
-            occupancy = min(98.0, occupancy + 15.0)
+            emergency_vehicle = True
+            emergency_type = random.choice(EMERGENCY_TYPES)
+            vehicle_count += random.randint(20, 40)
+            avg_speed = max(8.0, avg_speed - 14.0)
+            occupancy = min(98.0, occupancy + 20.0)
             density_desc = "CRITICAL"
-        elif event_roll < 0.20:
+        elif event_roll < 0.45:
             accident = False
             emergency_vehicle = True
             emergency_type = random.choice(EMERGENCY_TYPES)
