@@ -1,203 +1,163 @@
 """
-FastAPI REST API Routes for Smart Traffic Management System.
+FastAPI REST API Router for Smart Traffic Management System (Backend Package).
+Exposes live traffic telemetry, multi-agent pipeline execution, report retrieval, and developer debug endpoints.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
-from sqlalchemy.orm import Session
+
+from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, Any, List, Optional
-import numpy as np
-
-try:
-    import cv2
-    CV2_AVAILABLE = True
-except Exception:
-    CV2_AVAILABLE = False
-
-from database.db import (
-    get_db,
-    get_all_intersections,
-    get_intersection,
-    update_intersection_signal,
-    get_latest_vision_metrics,
-    get_latest_decision_logs,
-    get_latest_reports,
-    get_all_alerts,
-    save_emergency_event
+from models.schemas import (
+    TrafficInputSchema,
+    TrafficReportSchema,
+    SystemStatusSchema,
+    CrewExecutionOutputSchema
 )
+from database.db import (
+    get_latest_reports,
+    get_latest_traffic_data,
+    get_active_alerts,
+    get_analytics_summary,
+    save_driver_safety_log,
+    get_driver_safety_logs
+)
+from tools.traffic_data_fetcher import TrafficDataFetcher, get_data_lineage
+from tools.driver_behavior_tools import DriverBehaviorTools
 from crew import run_traffic_crew
-from vision.yolo_detector import YOLOV8Detector
-from vision.stream_processor import stream_processor
 
-router = APIRouter(prefix="/api/traffic", tags=["Smart Traffic Management AI"])
-
-# Shared YOLO Detector Instance
-detector = YOLOV8Detector()
+router = APIRouter(prefix="/traffic", tags=["Traffic Management"])
 
 
-@router.get("/intersections", summary="Get all smart intersection nodes")
-def list_intersections(db: Session = Depends(get_db)):
-    """Retrieve state and metadata for all intersections in the smart grid."""
-    return {"status": "success", "intersections": get_all_intersections(db)}
-
-
-@router.get("/intersections/{code}", summary="Get specific intersection detail")
-def get_intersection_detail(code: str, db: Session = Depends(get_db)):
-    node = get_intersection(db, code)
-    if not node:
-        raise HTTPException(status_code=404, detail=f"Intersection {code} not found")
-    metrics = get_latest_vision_metrics(db, code=code, limit=5)
-    return {"status": "success", "intersection": node, "recent_vision_metrics": metrics}
-
-
-@router.post("/detect", summary="Process uploaded frame with YOLOv8 Vision Detector")
-async def detect_frame(file: UploadFile = File(...), code: str = Form("INT-01")):
-    """Upload a camera image frame to run YOLOv8 detection for 5 vehicle classes."""
-    contents = await file.read()
-    nparr = np.frombuffer(contents, np.uint8)
+@router.get("/status", response_model=SystemStatusSchema)
+def get_system_status():
+    """Get operational status of the AI Traffic System and database connection."""
+    reports = get_latest_reports(limit=10)
+    active_corridors = sum(1 for r in reports if r.get("green_corridor_active"))
     
-    if CV2_AVAILABLE:
-        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    return SystemStatusSchema(
+        status="ONLINE",
+        version="1.0.0",
+        active_agents=7,
+        junctions_monitored=5,
+        active_emergency_corridors=active_corridors,
+        database_status="CONNECTED"
+    )
+
+
+@router.get("/live")
+def get_live_traffic_data(road_name: str = Query("Main Road", description="Target road or junction name")):
+    """
+    Fetch structured real-time traffic data (validated metrics) from data fetcher engine.
+    """
+    try:
+        data = TrafficDataFetcher.get_traffic_data(road_name=road_name)
+        return {
+            "status": "success",
+            "data": data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch live traffic data: {str(e)}")
+
+
+@router.post("/refresh")
+def refresh_traffic_pipeline(road_name: str = Query("Main Road", description="Target road or junction name")):
+    """
+    Force-refresh traffic data fetcher and execute multi-agent CrewAI decision pipeline.
+    """
+    try:
+        traffic_data = TrafficDataFetcher.get_traffic_data(road_name=road_name)
+        pipeline_output = run_traffic_crew(traffic_data)
+        return {
+            "status": "success",
+            "message": f"Traffic data refreshed & pipeline executed for {road_name}",
+            "live_data": traffic_data,
+            "pipeline_report": pipeline_output
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to refresh traffic pipeline: {str(e)}")
+
+
+@router.get("/debug/data-lineage")
+def get_debug_data_lineage(road_name: str = Query("Main Road", description="Target road or junction name")):
+    """
+    Developer debug endpoint returning 5-stage data lineage flow:
+    DATA SOURCE -> RAW RESPONSE -> NORMALIZED RESPONSE -> TRAFFIC AGENT INPUT -> TRAFFIC AGENT OUTPUT
+    """
+    try:
+        reports = get_latest_reports(limit=10)
+        filtered = [r for r in reports if r.get("road_name") == road_name]
+        latest_agent_output = filtered[0].get("full_report") if filtered else None
+        lineage = get_data_lineage(road_name=road_name, agent_output=latest_agent_output)
+        return lineage
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate data lineage trace: {str(e)}")
+
+
+@router.post("/input", response_model=CrewExecutionOutputSchema)
+def process_traffic_input(payload: Optional[TrafficInputSchema] = None, simulate: bool = Query(False, description="If True, auto-generate synthetic telemetry")):
+    """
+    Accept custom traffic telemetry data or trigger simulation tick, then execute CrewAI multi-agent pipeline.
+    """
+    if simulate or payload is None:
+        telemetry = TrafficDataFetcher.get_traffic_data("Main Road")
     else:
-        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        telemetry = payload.model_dump()
 
-    if frame is None:
-        raise HTTPException(status_code=400, detail="Invalid image file format")
+    try:
+        report_output = run_traffic_crew(telemetry)
+        return report_output
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process traffic agent pipeline: {str(e)}")
 
-    annotated_frame, metrics = detector.process_frame(frame, intersection_code=code)
-    b64_img = detector.encode_frame_to_base64(annotated_frame)
 
+@router.get("/report")
+def get_traffic_reports(limit: int = Query(10, ge=1, le=50)):
+    """Fetch latest traffic reports and agent execution decisions."""
+    reports = get_latest_reports(limit=limit)
+    if not reports:
+        sim_data = TrafficDataFetcher.get_traffic_data("Main Road")
+        run_traffic_crew(sim_data)
+        reports = get_latest_reports(limit=limit)
+    return {"count": len(reports), "reports": reports}
+
+
+@router.get("/analytics")
+def get_traffic_analytics(limit: int = Query(20, ge=1, le=100)):
+    """Fetch historical traffic analytics, carbon emission statistics, and performance scores."""
+    analytics = get_analytics_summary(limit=limit)
+    alerts = get_active_alerts(limit=limit)
+    raw_data = get_latest_traffic_data(limit=limit)
+    
     return {
-        "status": "success",
-        "metrics": metrics,
-        "annotated_frame_base64": b64_img
+        "count": len(analytics),
+        "analytics": analytics,
+        "recent_alerts": alerts,
+        "raw_telemetry": raw_data
     }
 
 
-@router.post("/run-crew", summary="Execute 6-Agent CrewAI Orchestrator Pipeline")
-def execute_crew(payload: Dict[str, Any], db: Session = Depends(get_db)):
+@router.post("/driver-safety/analyze")
+def analyze_driver_safety(telemetry: Dict[str, Any]):
     """
-    Trigger full 6-agent sequential execution:
-    Vision -> Traffic Analysis -> Prediction -> Pollution -> Emergency -> Decision
+    Analyze driver telemetry to detect violations, compute Safety Score (0-100),
+    predict risk probability, and generate safety alerts.
     """
-    report = run_traffic_crew(payload)
-    return {"status": "success", "report": report}
-
-
-@router.get("/predictions", summary="Get short-term congestion forecasts")
-def get_predictions(code: str = Query("INT-01"), db: Session = Depends(get_db)):
-    metrics = get_latest_vision_metrics(db, code=code, limit=1)
-    current_density = metrics[0]["density_pct"] if metrics else 45.0
-    from agents.prediction_agent import process_prediction_rule_based
-    from agents.traffic_analysis_agent import process_traffic_analysis_rule_based
-    
-    vis = {"intersection_code": code, "density_pct": current_density}
-    ana = process_traffic_analysis_rule_based(vis)
-    pred = process_prediction_rule_based(vis, ana)
-    return {"status": "success", "prediction": pred}
-
-
-@router.get("/emissions", summary="Get environmental emissions estimate")
-def get_emissions(code: str = Query("INT-01"), db: Session = Depends(get_db)):
-    metrics = get_latest_vision_metrics(db, code=code, limit=1)
-    vision_data = metrics[0] if metrics else {"total_vehicles": 35, "density_pct": 40.0}
-    from agents.pollution_agent import process_pollution_rule_based
-    from agents.traffic_analysis_agent import process_traffic_analysis_rule_based
-    
-    ana = process_traffic_analysis_rule_based(vision_data)
-    pol = process_pollution_rule_based(vision_data, ana)
-    return {"status": "success", "pollution": pol}
-
-
-@router.post("/emergency/trigger", summary="Activate/Deactivate Emergency Green Corridor")
-def trigger_emergency(payload: Dict[str, Any], db: Session = Depends(get_db)):
-    """Trigger emergency vehicle corridor preemption for designated intersection route."""
-    code = payload.get("intersection_code", "INT-01")
-    active = payload.get("active", True)
-    vehicle_type = payload.get("vehicle_type", "AMBULANCE")
-
-    from agents.emergency_agent import process_emergency_rule_based
-    vis_data = {"intersection_code": code, "emergency_vehicle_detected": active, "fleet_breakdown": {"ambulance": 1 if active else 0}}
-    emg_result = process_emergency_rule_based(vis_data, {})
-
-    save_emergency_event(db, emg_result)
-
-    # Re-run Decision Agent to update signal splits
-    telemetry = {"intersection_code": code, "emergency_vehicle": active, "emergency_type": vehicle_type}
-    report = run_traffic_crew(telemetry)
-
-    return {"status": "success", "emergency_event": emg_result, "crew_decision": report["decision"]}
-
-
-@router.post("/signals/override", summary="Manual override of traffic signal mode & timers")
-def override_signal(payload: Dict[str, Any], db: Session = Depends(get_db)):
-    code = payload.get("intersection_code", "INT-01")
-    mode = payload.get("signal_mode", "MANUAL")
-    phase = payload.get("active_phase", "NORTH_SOUTH_GREEN")
-    ns_timer = payload.get("ns_green_timer", 30)
-    ew_timer = payload.get("ew_green_timer", 30)
-
-    updated_node = update_intersection_signal(db, code=code, mode=mode, phase=phase, ns_timer=ns_timer, ew_timer=ew_timer)
-    if not updated_node:
-        raise HTTPException(status_code=404, detail=f"Intersection {code} not found")
-
-    return {"status": "success", "intersection": updated_node}
-
-
-@router.get("/decision-logs", summary="Get Explainable AI (XAI) natural language decision logs")
-def fetch_decision_logs(limit: int = 20, db: Session = Depends(get_db)):
-    logs = get_latest_decision_logs(db, limit=limit)
-    return {"status": "success", "decision_logs": logs}
-
-
-@router.post("/sumo/sync", summary="SUMO Simulation Integration Bridge")
-def sync_sumo_data(payload: Dict[str, Any], db: Session = Depends(get_db)):
-    """Bridge API to accept telemetry from SUMO (Simulation of Urban MObility)."""
-    code = payload.get("intersection_code", "INT-01")
-    telemetry = {
-        "intersection_code": code,
-        "vehicles": payload.get("vehicle_count", 40),
-        "average_speed": payload.get("avg_speed_m_s", 12.0) * 3.6,
-        "emergency_vehicle": payload.get("has_emergency_vehicle", False)
-    }
-    report = run_traffic_crew(telemetry)
-    return {"status": "success", "sumo_ingested": True, "crew_report": report}
-
-
-@router.post("/stream/source", summary="Switch video stream camera source")
-def set_stream_source(payload: Dict[str, Any]):
-    source = payload.get("source", "synthetic")
-    stream_processor.start_stream(source=source)
-    return {"status": "success", "active_source": source}
-
-
-# --- DRIVER BEHAVIOR & SAFETY ANALYTICS ROUTES ---
-
-@router.post("/driver-safety/analyze", summary="Analyze driver telemetry and compute Driver Safety Score")
-def analyze_driver_safety(telemetry: Dict[str, Any], db: Session = Depends(get_db)):
-    """
-    Analyze vehicle telemetry to detect 8 violation types, compute Driver Safety Score (0-100),
-    predict future driver risk, log GPS location intelligence, and raise safety alerts.
-    """
-    from tools.driver_behavior_tools import DriverBehaviorTools
-    from database.db import save_driver_safety_log
-    
     try:
         result = DriverBehaviorTools.evaluate_telemetry(telemetry)
-        save_driver_safety_log(db, result)
-        return {"status": "success", "driver_safety": result}
+        save_driver_safety_log(result)
+        return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to analyze driver safety: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to analyze driver behavior: {str(e)}")
 
 
-@router.get("/driver-safety/logs", summary="Get driver safety assessment logs")
-def fetch_driver_safety_logs(limit: int = 20):
-    from database.db import get_driver_safety_logs
+@router.get("/driver-safety/logs")
+def fetch_driver_safety_logs(limit: int = Query(20, ge=1, le=100)):
+    """Retrieve persisted driver safety logs."""
     logs = get_driver_safety_logs(limit=limit)
-    return {"status": "success", "count": len(logs), "logs": logs}
+    return {"count": len(logs), "logs": logs}
 
 
-@router.get("/driver-safety/test-cases", summary="Get 6 simulated driver telemetry test scenarios")
-def get_driver_safety_test_scenarios():
-    from tools.driver_behavior_tools import DriverBehaviorTools
+@router.get("/driver-safety/test-cases")
+def get_driver_safety_test_cases():
+    """Returns 6 predefined telemetry test cases for demonstration and testing."""
     test_cases = DriverBehaviorTools.get_test_cases()
     results = []
     for tc in test_cases:
@@ -207,27 +167,4 @@ def get_driver_safety_test_scenarios():
             "input_telemetry": tc["telemetry"],
             "evaluation": eval_res
         })
-    return {"status": "success", "count": len(results), "test_cases": results}
-
-
-# --- LEGACY STREAMLIT & BACKWARDS COMPATIBILITY ROUTES ---
-
-@router.get("/status", tags=["Legacy Compatibility"])
-def legacy_status():
-    return {"status": "ONLINE", "mode": "OPERATIONAL", "agents": 7}
-
-
-@router.get("/report", tags=["Legacy Compatibility"])
-def legacy_report(limit: int = 10):
-    return {"reports": get_latest_reports(limit=limit)}
-
-
-@router.post("/input", tags=["Legacy Compatibility"])
-def legacy_input(payload: Dict[str, Any]):
-    return run_traffic_crew(payload)
-
-
-@router.get("/alerts", tags=["Legacy Compatibility"])
-def legacy_alerts(limit: int = 20):
-    return {"alerts": get_all_alerts(limit=limit)}
-
+    return {"count": len(results), "test_cases": results}

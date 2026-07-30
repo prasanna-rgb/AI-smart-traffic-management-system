@@ -38,6 +38,8 @@ from tools.simulation_tools import TrafficSimulator, ROADS
 from tools.pdf_generator import generate_traffic_pdf_report
 from tools.audio_announcer import generate_voice_announcement_html
 from tools.whatsapp_bot import send_whatsapp_ai_bot_message
+from tools.traffic_data_fetcher import TrafficDataFetcher, get_data_lineage
+
 from tools.sms_bot import send_cellular_sms
 from crew import run_traffic_crew
 
@@ -642,14 +644,16 @@ with col5:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # Main Navigation Tabs
-tab1, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab_gis, tab2, tab3, tab4, tab5, tab_debug = st.tabs([
     "📊 Executive Operations & Agent Flow", 
     "🗺️ GIS Map & Google Satellite", 
     "🚦 Signal Controllers & Preemption", 
     "📢 Citizen Broadcast Feed", 
     "📈 Analytics & Sustainability",
-    "🛡️ V2I Pre-Crash Safety"
+    "🛡️ V2I Pre-Crash Safety",
+    "🐞 Data Lineage Debug"
 ])
+
 
 # Extract new agent data
 v2i = full_report.get("v2i_precrash", {})
@@ -1251,4 +1255,26 @@ with tab5:
                 """,
                 unsafe_allow_html=True
             )
+
+with tab_debug:
+    st.markdown("### 🐞 Developer Data Lineage & Agent Input Debug View")
+    st.caption("Inspect complete end-to-end data flow: DATA SOURCE ➔ RAW RESPONSE ➔ NORMALIZED RESPONSE ➔ TRAFFIC AGENT INPUT ➔ TRAFFIC AGENT OUTPUT")
+
+    lineage = get_data_lineage(road_name=selected_road, agent_output=full_report)
+
+    st.markdown("#### 1. 🌐 DATA SOURCE")
+    st.json(lineage.get("data_source"))
+
+    st.markdown("#### 2. 📥 RAW RESPONSE (API / Sensor Output)")
+    st.json(lineage.get("raw_response"))
+
+    st.markdown("#### 3. ⚙️ NORMALIZED & VALIDATED RESPONSE")
+    st.json(lineage.get("normalized_response"))
+
+    st.markdown("#### 4. 🤖 TRAFFIC MONITORING AGENT INPUT (Passed to CrewAI Task)")
+    st.code(lineage.get("agent_input"), language="text")
+
+    st.markdown("#### 5. 📄 TRAFFIC MONITORING AGENT OUTPUT (JSON Report)")
+    st.json(lineage.get("agent_output"))
+
 

@@ -1,6 +1,8 @@
 """
 FastAPI REST API Router for Smart Traffic Management System.
+Exposes live traffic telemetry, multi-agent pipeline execution, report retrieval, and developer debug endpoints.
 """
+
 from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, Any, List, Optional
 from models.schemas import (
@@ -17,7 +19,7 @@ from database.db import (
     save_driver_safety_log,
     get_driver_safety_logs
 )
-from tools.simulation_tools import TrafficSimulator
+from tools.traffic_data_fetcher import TrafficDataFetcher, get_data_lineage
 from tools.driver_behavior_tools import DriverBehaviorTools
 from crew import run_traffic_crew
 
@@ -40,13 +42,62 @@ def get_system_status():
     )
 
 
+@router.get("/live")
+def get_live_traffic_data(road_name: str = Query("Main Road", description="Target road or junction name")):
+    """
+    Fetch structured real-time traffic data (validated metrics) from data fetcher engine.
+    """
+    try:
+        data = TrafficDataFetcher.get_traffic_data(road_name=road_name)
+        return {
+            "status": "success",
+            "data": data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch live traffic data: {str(e)}")
+
+
+@router.post("/refresh")
+def refresh_traffic_pipeline(road_name: str = Query("Main Road", description="Target road or junction name")):
+    """
+    Force-refresh traffic data fetcher and execute multi-agent CrewAI decision pipeline.
+    """
+    try:
+        traffic_data = TrafficDataFetcher.get_traffic_data(road_name=road_name)
+        pipeline_output = run_traffic_crew(traffic_data)
+        return {
+            "status": "success",
+            "message": f"Traffic data refreshed & pipeline executed for {road_name}",
+            "live_data": traffic_data,
+            "pipeline_report": pipeline_output
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to refresh traffic pipeline: {str(e)}")
+
+
+@router.get("/debug/data-lineage")
+def get_debug_data_lineage(road_name: str = Query("Main Road", description="Target road or junction name")):
+    """
+    Developer debug endpoint returning 5-stage data lineage flow:
+    DATA SOURCE -> RAW RESPONSE -> NORMALIZED RESPONSE -> TRAFFIC AGENT INPUT -> TRAFFIC AGENT OUTPUT
+    """
+    try:
+        reports = get_latest_reports(limit=10)
+        filtered = [r for r in reports if r.get("road_name") == road_name]
+        latest_agent_output = filtered[0].get("full_report") if filtered else None
+        lineage = get_data_lineage(road_name=road_name, agent_output=latest_agent_output)
+        return lineage
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate data lineage trace: {str(e)}")
+
+
 @router.post("/input", response_model=CrewExecutionOutputSchema)
 def process_traffic_input(payload: Optional[TrafficInputSchema] = None, simulate: bool = Query(False, description="If True, auto-generate synthetic telemetry")):
     """
     Accept custom traffic telemetry data or trigger simulation tick, then execute CrewAI multi-agent pipeline.
     """
     if simulate or payload is None:
-        telemetry = TrafficSimulator.generate_random_telemetry()
+        telemetry = TrafficDataFetcher.get_traffic_data("Main Road")
     else:
         telemetry = payload.model_dump()
 
@@ -62,7 +113,7 @@ def get_traffic_reports(limit: int = Query(10, ge=1, le=50)):
     """Fetch latest traffic reports and agent execution decisions."""
     reports = get_latest_reports(limit=limit)
     if not reports:
-        sim_data = TrafficSimulator.generate_random_telemetry(road="Main Road")
+        sim_data = TrafficDataFetcher.get_traffic_data("Main Road")
         run_traffic_crew(sim_data)
         reports = get_latest_reports(limit=limit)
     return {"count": len(reports), "reports": reports}
@@ -117,4 +168,3 @@ def get_driver_safety_test_cases():
             "evaluation": eval_res
         })
     return {"count": len(results), "test_cases": results}
-

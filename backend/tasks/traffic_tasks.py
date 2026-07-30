@@ -1,75 +1,148 @@
 """
-CrewAI Task Definitions for the 6-Agent Smart Traffic Pipeline.
+CrewAI Task definitions for Smart Traffic Agents (Backend Package).
+Configures structured task prompts, expected outputs, and data passing pipelines.
 """
-from typing import Dict, Any, List
 
+from typing import Dict, Any, List
 try:
     from crewai import Task
-    CREWAI_AVAILABLE = True
 except Exception:
-    CREWAI_AVAILABLE = False
     Task = None
 
-def create_traffic_tasks(agents: Dict[str, Any], telemetry_input: Dict[str, Any]) -> List:
-    """Creates sequential task objects for all CrewAI agents if CrewAI is loaded."""
-    if not CREWAI_AVAILABLE or Task is None:
+from tools.traffic_data_fetcher import TrafficDataFetcher
+
+
+def create_traffic_tasks(agents_dict: dict, telemetry_input: dict) -> list:
+    """
+    Creates sequential CrewAI tasks mapped to agents.
+    
+    Args:
+        agents_dict: Dictionary containing instantiated CrewAI agents.
+        telemetry_input: Raw or pre-processed telemetry dictionary for the monitored road.
+    
+    Returns:
+        List of configured CrewAI Task objects.
+    """
+    if Task is None:
         return []
-        
-    t_vision = Task(
-        description=f"Analyze raw camera stream telemetry for intersection {telemetry_input.get('road', 'INT-01')}: {telemetry_input}. Count cars, buses, trucks, motorcycles, and ambulances.",
-        expected_output="JSON object containing exact fleet composition counts, density percentage, and emergency vehicle status.",
-        agent=agents.get("vision", agents.get("monitor"))
+
+    road_name = telemetry_input.get("road_name", telemetry_input.get("road", "Main Road"))
+
+    traffic_struct = TrafficDataFetcher.get_traffic_data(road_name)
+
+    # Override with explicitly injected custom telemetry parameters if provided
+    for k, v in telemetry_input.items():
+        if k in ["vehicle_count", "vehicles", "average_speed", "accident", "emergency_vehicle", "weather"]:
+            if k == "vehicles":
+                traffic_struct["vehicle_count"] = v
+            elif k == "accident":
+                traffic_struct["accident_status"] = bool(v)
+            elif k == "emergency_vehicle":
+                traffic_struct["emergency_vehicle_status"] = bool(v)
+            else:
+                traffic_struct[k] = v
+
+    # Formulate complete structured prompt
+    input_prompt = (
+        f"TRAFFIC DATA:\n"
+        f"Road ID: {traffic_struct.get('road_id')}\n"
+        f"Road Name: {traffic_struct.get('road_name')}\n"
+        f"Latitude: {traffic_struct.get('latitude')}\n"
+        f"Longitude: {traffic_struct.get('longitude')}\n"
+        f"Vehicle Count: {traffic_struct.get('vehicle_count')}\n"
+        f"Average Speed: {traffic_struct.get('average_speed')} km/h\n"
+        f"Traffic Density: {traffic_struct.get('traffic_density')}\n"
+        f"Congestion Level: {traffic_struct.get('congestion_level')}%\n"
+        f"Travel Time: {traffic_struct.get('travel_time')} minutes\n"
+        f"Normal Travel Time: {traffic_struct.get('normal_travel_time')} minutes\n"
+        f"Delay: {traffic_struct.get('delay')} minutes\n"
+        f"Accident Status: {traffic_struct.get('accident_status')}\n"
+        f"Emergency Vehicle Status: {traffic_struct.get('emergency_vehicle_status')}\n"
+        f"Road Status: {traffic_struct.get('road_status')}\n"
+        f"Weather: {traffic_struct.get('weather')}\n"
+        f"Timestamp: {traffic_struct.get('timestamp')}"
     )
 
-    tasks = [t_vision]
+    tasks_list = []
 
-    if "driver_safety" in agents:
-        t_driver_safety = Task(
-            description="Analyze driver and vehicle telemetry. Detect 8 violation categories, calculate Driver Safety Score (0-100), predict future risk probability, and generate safety alerts.",
-            expected_output="JSON object with vehicle_id, safety_score, risk_level, violations, primary_hazard, recommendation, risk_prediction, and formatted_alert.",
-            agent=agents.get("driver_safety")
+    # Task 1: Traffic Monitoring
+    if "monitor" in agents_dict:
+        task_monitor = Task(
+            description=(
+                f"You are provided with real structured traffic data:\n\n{input_prompt}\n\n"
+                f"Validate metrics, analyze traffic conditions, diagnose bottlenecks or emergency events, "
+                f"and generate a standard structured JSON Traffic Report. "
+                f"DO NOT invent or hallucinate metrics. Use 'unavailable' for any unprovided values."
+            ),
+            expected_output=(
+                "Structured JSON object with keys: road_id, road_name, location (latitude, longitude), "
+                "vehicle_count, average_speed, traffic_density, congestion_level, travel_time, delay, "
+                "accident_status, emergency_vehicle_status, road_status, weather, timestamp, risk_level."
+            ),
+            agent=agents_dict["monitor"]
         )
-        tasks.append(t_driver_safety)
+        tasks_list.append(task_monitor)
 
-    if "traffic_analysis" in agents:
-        t_analysis = Task(
-            description="Evaluate vision metrics to calculate Level of Service (LOS A-F), vehicle queue length, occupancy rate, and identify bottleneck congestion points.",
-            expected_output="JSON object with LOS grade, average delay seconds, and queue length in meters.",
-            agent=agents.get("traffic_analysis")
+    # Task 2: Driver Behavior & Safety Analytics
+    if "driver_safety" in agents_dict:
+        task_driver_safety = Task(
+            description=(
+                f"Analyze driver behavior telemetry for {road_name}.\n\n{input_prompt}\n\n"
+                f"Detect 8 violation categories, compute Driver Safety Score (0-100), classify Risk Level, "
+                f"predict risk probability, and generate safety alerts."
+            ),
+            expected_output=(
+                "JSON object with vehicle_id, safety_score, risk_level, violations, primary_hazard, "
+                "recommendation, risk_prediction, and formatted_alert."
+            ),
+            agent=agents_dict["driver_safety"]
         )
-        tasks.append(t_analysis)
+        tasks_list.append(task_driver_safety)
 
-    if "prediction" in agents:
-        t_prediction = Task(
-            description="Forecast 5, 10, 15, and 30-minute congestion score trends based on current inflow and analysis metrics.",
-            expected_output="JSON object with 5m, 10m, 15m, 30m forecast scores and trend narrative.",
-            agent=agents.get("prediction")
+    # Task 3: Congestion Prediction
+    if "congestion" in agents_dict or "prediction" in agents_dict:
+        task_congestion = Task(
+            description="Read Traffic Report from Task 1. Calculate congestion score (0-100), predict 30-min traffic trend, and recommend alternate bypass roads.",
+            expected_output="JSON object containing congestion score, risk level, predicted trend, estimated delay, and alternate routes.",
+            agent=agents_dict.get("congestion", agents_dict.get("prediction"))
         )
-        tasks.append(t_prediction)
+        tasks_list.append(task_congestion)
 
-    if "pollution" in agents:
-        t_pollution = Task(
-            description="Calculate environmental impact metrics including CO2 (kg/hr), NOx (g/hr), PM2.5 (g/hr), and fuel consumption rates.",
-            expected_output="JSON object with CO2 emissions, NOx, PM2.5, fuel burn rate, and Eco Index score.",
-            agent=agents.get("pollution")
+    # Task 4: Emergency Vehicle Priority
+    if "emergency" in agents_dict:
+        task_emergency = Task(
+            description="Inspect Traffic Report & Congestion data. If emergency vehicles are present, generate Green Corridor route and signal override commands.",
+            expected_output="JSON object with green corridor status, vehicle type, priority route, and signal override instructions.",
+            agent=agents_dict["emergency"]
         )
-        tasks.append(t_pollution)
+        tasks_list.append(task_emergency)
 
-    if "emergency" in agents:
-        t_emergency = Task(
-            description="Check for emergency vehicles and determine green corridor routing across connected intersections.",
-            expected_output="JSON object with emergency status, priority score (1-10), and green corridor path list.",
-            agent=agents.get("emergency")
+    # Task 5: Signal Optimization / Decision
+    signal_agent = agents_dict.get("signal", agents_dict.get("decision"))
+    if signal_agent:
+        task_signal = Task(
+            description="Synthesize reports from previous tasks. Compute optimal dynamic green light duration to reduce wait times and clear queue bottleneck.",
+            expected_output="JSON object with target junction, current/recommended green times, dynamic extension, and estimated wait reduction.",
+            agent=signal_agent
         )
-        tasks.append(t_emergency)
+        tasks_list.append(task_signal)
 
-    if "decision" in agents:
-        t_decision = Task(
-            description="Reason over all previous agent outputs to determine optimal green signal timing splits and generate natural language explainable AI (XAI) decision rationale.",
-            expected_output="JSON object with optimized signal timing splits, active phase, and detailed natural language XAI decision reasoning.",
-            agent=agents.get("decision")
+    # Task 6: Citizen Communication
+    if "citizen" in agents_dict:
+        task_citizen = Task(
+            description="Formulate citizen warning notifications, road alerts, driver safety warnings, accident advisories, detour directions, and emergency corridor yielding notices.",
+            expected_output="JSON object containing alert title, severity, human-readable message, affected road, and broadcast channels.",
+            agent=agents_dict["citizen"]
         )
-        tasks.append(t_decision)
+        tasks_list.append(task_citizen)
 
-    return tasks
+    # Task 7: Traffic Analytics
+    if "analytics" in agents_dict:
+        task_analytics = Task(
+            description="Aggregate overall system decisions and driver safety metrics. Calculate road performance score (0-100), estimate CO2 carbon emissions, and output executive insights.",
+            expected_output="JSON object containing performance index, carbon emissions (kg CO2), and summary key insights.",
+            agent=agents_dict["analytics"]
+        )
+        tasks_list.append(task_analytics)
 
+    return tasks_list
