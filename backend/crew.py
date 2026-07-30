@@ -1,12 +1,12 @@
 """
-CrewAI Orchestrator for 6-Agent Smart Traffic Pipeline.
-Coordinates Vision, Traffic Analysis, Prediction, Pollution, Emergency, and Decision agents.
+CrewAI Orchestrator for Multi-Agent Smart Traffic Pipeline (Backend Package).
+Manages sequential agent execution, emergency response workflow, automatic recovery, and database persistence.
 """
 import json
 import logging
+import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional
-
 
 try:
     from crewai import Crew, Process
@@ -17,136 +17,227 @@ except Exception as e:
     Process = None
 
 from config.settings import get_llm
-from agents import (
-    create_vision_agent, process_vision_rule_based,
-    create_driver_safety_agent, process_driver_safety_rule_based,
-    create_traffic_analysis_agent, process_traffic_analysis_rule_based,
-    create_prediction_agent, process_prediction_rule_based,
-    create_pollution_agent, process_pollution_rule_based,
-    create_emergency_agent, process_emergency_rule_based,
-    create_decision_agent, process_decision_rule_based
-)
-from tasks.traffic_tasks import create_traffic_tasks
+from agents.traffic_monitor import create_traffic_monitor_agent, process_traffic_monitor_rule_based
+from agents.congestion_agent import create_congestion_agent, process_congestion_rule_based
+from agents.emergency_agent import create_emergency_agent, process_emergency_rule_based
+from agents.signal_agent import create_signal_agent, process_signal_rule_based
+from agents.citizen_agent import create_citizen_agent, process_citizen_rule_based
+from agents.analytics_agent import create_analytics_agent, process_analytics_rule_based
+from agents.driver_safety_agent import create_driver_safety_agent, process_driver_safety_rule_based
+from agents.weather_agent import create_weather_agent, process_weather_rule_based
+from tools.audio_announcer import get_emergency_voice_script
 from database.db import (
-    SessionLocal,
-    save_vision_metric,
-    save_prediction,
-    save_pollution_log,
-    save_emergency_event,
-    save_decision_log,
-    update_intersection_signal,
     save_traffic_input,
     save_traffic_report,
     save_alert,
     save_analytics,
-    save_driver_safety_log
+    save_driver_safety_log,
+    save_emergency_event
 )
-
 
 logger = logging.getLogger("smart_traffic_ai.crew")
 
 
 class SmartTrafficCrew:
-    """Orchestrator class for managing the 6-agent CrewAI traffic pipeline."""
+    """Orchestrator class for managing the multi-agent traffic pipeline and emergency workflow."""
 
     def __init__(self):
         self.llm = get_llm()
 
     def run(self, telemetry_input: Dict[str, Any], registered_phone: Optional[str] = None) -> Dict[str, Any]:
-        """Execute full 6-agent traffic optimization pipeline."""
+        """
+        Execute full multi-agent traffic optimization & emergency response pipeline.
+        """
         if registered_phone and isinstance(telemetry_input, dict):
             telemetry_input["registered_phone"] = registered_phone
-        code = telemetry_input.get("intersection_code", telemetry_input.get("road", "INT-01"))
+        road_name = telemetry_input.get("road_name", telemetry_input.get("road", "Main Road"))
+        logger.info(f"Starting Multi-Agent Traffic Pipeline for: {road_name}")
 
-        logger.info(f"Executing 6-Agent CrewAI Traffic Optimization Pipeline for: {code}")
-
+        # Persist raw telemetry
         save_traffic_input(telemetry_input)
 
-        if self.llm is not None and CREWAI_AVAILABLE:
+        # Execute agents sequentially
+        if self.llm is not None:
             try:
-                report = self._run_crewai_agent_flow(telemetry_input)
+                report_dict = self._run_crewai_agent_flow(telemetry_input)
             except Exception as e:
-                logger.warning(f"CrewAI LLM execution exception ({e}). Utilizing deterministic agent reasoning engine.")
-                report = self._run_rule_based_flow(telemetry_input)
+                logger.warning(f"CrewAI LLM execution encountered exception: {e}. Falling back to Rule-Based Engine.")
+                report_dict = self._run_rule_based_flow(telemetry_input)
         else:
-            report = self._run_rule_based_flow(telemetry_input)
+            logger.info("Using Rule-Based Engine (No Gemini API key or LLM fallback).")
+            report_dict = self._run_rule_based_flow(telemetry_input)
 
-        # Persist all 6 agent outputs to PostgreSQL DB
-        db = SessionLocal()
-        try:
-            save_vision_metric(db, report["vision"])
-            save_prediction(db, report["prediction"])
-            save_pollution_log(db, report["pollution"])
-            save_emergency_event(db, report["emergency"])
-            save_decision_log(db, report["decision"])
+        # Extract agent responses
+        t_rep = report_dict["traffic_report"]
+        d_safe = report_dict.get("driver_safety", {})
+        c_pred = report_dict["congestion_prediction"]
+        e_corr = report_dict["emergency_corridor"]
+        s_opt = report_dict["signal_optimization"]
+        c_alt = report_dict["citizen_alerts"]
+        a_sum = report_dict["analytics_summary"]
 
-            # Update live signal state
-            dec = report["decision"]
-            splits = dec.get("recommended_splits", {})
-            update_intersection_signal(
-                db,
-                code=code,
-                mode=dec.get("signal_mode", "AI_AUTO"),
-                phase=dec.get("active_phase", "NORTH_SOUTH_GREEN"),
-                ns_timer=splits.get("north_south_green_sec", 45),
-                ew_timer=splits.get("east_west_green_sec", 25)
-            )
+        # 🚨 Handle Emergency Event Persistence & Recovery Logging
+        has_emergency = e_corr.get("emergency_detected", False) or t_rep.get("accident_status", False)
+        is_recovery = telemetry_input.get("accident_resolved", False) and telemetry_input.get("emergency_vehicle_passed", False)
 
-            # Persist backwards compatible reports
-            vis = report["vision"]
-            pred = report["prediction"]
-            emg = report["emergency"]
-            save_traffic_report(
-                road_name=code,
-                density=vis.get("density_category", "Medium"),
-                congestion_score=vis.get("density_pct", 40.0),
-                signal_mode=dec.get("signal_mode", "AI_AUTO"),
-                green_corridor=emg.get("green_corridor_active", False),
-                report_dict=report
-            )
-        except Exception as err:
-            logger.error(f"Error persisting agent outputs to DB: {err}")
-        finally:
-            db.close()
+        if has_emergency or is_recovery:
+            evt_type = "RESOLVED" if is_recovery else e_corr.get("event_type", "ACCIDENT")
+            evt_severity = "NORMAL" if is_recovery else e_corr.get("severity", "CRITICAL")
+            evt_status = "RESOLVED" if is_recovery else "ACTIVE"
+            v_type = e_corr.get("vehicle_type", "AMBULANCE")
 
-        return report
+            save_emergency_event({
+                "event_id": f"EVT-{uuid.uuid4().hex[:6].upper()}",
+                "event_type": evt_type,
+                "severity": evt_severity,
+                "road_name": road_name,
+                "location": {
+                    "latitude": t_rep.get("location", {}).get("latitude", 13.0827),
+                    "longitude": t_rep.get("location", {}).get("longitude", 80.2707)
+                },
+                "emergency_vehicle_type": v_type,
+                "signal_before": s_opt.get("signal_before_display", "Green 30s / Red 30s"),
+                "signal_after": s_opt.get("signal_after_display", "Green 50s / Red 15s"),
+                "green_time_before": s_opt.get("current_green_time_sec", 30),
+                "green_time_after": s_opt.get("recommended_green_time_sec", 50),
+                "voice_alert_sent": True,
+                "citizen_alert_sent": True,
+                "status": evt_status
+            })
+
+        if d_safe:
+            try:
+                save_driver_safety_log(d_safe)
+            except Exception as d_err:
+                logger.warning(f"Failed to persist driver safety log: {d_err}")
+
+        save_traffic_report(
+            road_name=road_name,
+            density=t_rep.get("density", "Medium"),
+            congestion_score=c_pred.get("congestion_score", 40.0),
+            signal_mode=s_opt.get("signal_mode", "Standard"),
+            green_corridor=e_corr.get("green_corridor_active", False),
+            report_dict=report_dict
+        )
+
+        save_alert(
+            alert_type="EMERGENCY" if has_emergency else "CITIZEN",
+            severity=c_alt.get("severity", "INFO"),
+            title=c_alt.get("title", "Traffic Update"),
+            message=c_alt.get("message", ""),
+            road_name=road_name,
+            alternate_route=c_alt.get("alternate_route")
+        )
+
+        save_analytics(
+            road_name=road_name,
+            vehicles=t_rep.get("vehicles", 50),
+            avg_speed=t_rep.get("average_speed", 40.0),
+            congestion_index=c_pred.get("congestion_score", 40.0),
+            carbon_kg=a_sum.get("carbon_emission_kg", 15.0),
+            performance=a_sum.get("road_performance_score", 75.0),
+            notes="; ".join(a_sum.get("key_insights", []))
+        )
+
+
+        logger.info(f"Pipeline complete for {road_name}. Congestion: {c_pred.get('congestion_score')}, Emergency: {has_emergency}")
+        return report_dict
 
     def _run_rule_based_flow(self, telemetry: Dict[str, Any]) -> Dict[str, Any]:
         """Execute high-speed deterministic workflow across all agents."""
-        vision_out = process_vision_rule_based(telemetry)
-        driver_safety_out = process_driver_safety_rule_based(telemetry)
-        analysis_out = process_traffic_analysis_rule_based(vision_out)
-        prediction_out = process_prediction_rule_based(vision_out, analysis_out)
-        pollution_out = process_pollution_rule_based(vision_out, analysis_out)
-        emergency_out = process_emergency_rule_based(vision_out, analysis_out)
-        decision_out = process_decision_rule_based(vision_out, analysis_out, prediction_out, pollution_out, emergency_out)
+        # Check Automatic Recovery condition
+        is_recovery = telemetry.get("accident_resolved", False) and telemetry.get("emergency_vehicle_passed", False)
+        
+        if is_recovery:
+            telemetry["accident"] = False
+            telemetry["accident_status"] = False
+            telemetry["emergency_vehicle"] = False
+            telemetry["emergency_vehicle_status"] = False
+
+        # 1. Traffic Monitoring Agent
+        traffic_report = process_traffic_monitor_rule_based(telemetry)
+        
+        # 2. Driver Behavior & Safety Analytics Agent
+        driver_safety = process_driver_safety_rule_based(telemetry)
+
+        # 3. Congestion Prediction Agent
+        congestion_prediction = process_congestion_rule_based(traffic_report)
+        
+        # 4. Emergency Vehicle Agent
+        emergency_corridor = process_emergency_rule_based(traffic_report, congestion_prediction)
+        
+        if is_recovery:
+            emergency_corridor["emergency_detected"] = False
+            emergency_corridor["green_corridor_active"] = False
+            emergency_corridor["event_type"] = "NORMAL"
+            emergency_corridor["severity"] = "NORMAL"
+            emergency_corridor["priority_level"] = "NORMAL"
+            emergency_corridor["signal_override_status"] = "INACTIVE: Emergency Resolved. Adaptive Traffic Signals Restored."
+
+        # 5. Smart Weather Adaptability Agent
+        weather_adaptation = process_weather_rule_based(traffic_report)
+        
+        # 6. Signal Optimization Agent
+        signal_optimization = process_signal_rule_based(traffic_report, congestion_prediction, emergency_corridor)
+        if weather_adaptation.get("weather_green_extension_sec", 0) > 0:
+            signal_optimization["recommended_green_time_sec"] += weather_adaptation["weather_green_extension_sec"]
+            signal_optimization["signal_mode"] += f"-WeatherAdapt({traffic_report.get('weather')})"
+        
+        if is_recovery:
+            signal_optimization["recommended_green_time_sec"] = 30
+            signal_optimization["recommended_yellow_time_sec"] = 5
+            signal_optimization["recommended_red_time_sec"] = 30
+            signal_optimization["dynamic_increase_sec"] = 0
+            signal_optimization["signal_mode"] = "STANDARD ADAPTIVE BALANCED (Restored)"
+            signal_optimization["signal_after_display"] = "🟢 Green: 30s | 🟡 Yellow: 5s | 🔴 Red: 30s"
+            signal_optimization["ai_explanation"]["reason"] = "Emergency situation resolved. Normal adaptive signal timing restored."
+
+        # 7. Citizen Communication Agent
+        citizen_alerts = process_citizen_rule_based(traffic_report, congestion_prediction, emergency_corridor)
+        if is_recovery:
+            citizen_alerts["title"] = f"✅ EMERGENCY RESOLVED - {telemetry.get('road', 'Main Road').upper()}"
+            citizen_alerts["severity"] = "INFO"
+            citizen_alerts["message"] = f"The emergency situation on {telemetry.get('road', 'Main Road')} has been resolved. Normal traffic operations are being restored."
+            citizen_alerts["alternate_route"] = None
+
+        # Generate Voice AI Emergency Script
+        voice_script = get_emergency_voice_script(
+            road_name=telemetry.get('road_name', telemetry.get('road', 'Main Road')),
+            event_type=emergency_corridor.get('event_type', 'NORMAL'),
+            vehicle_type=emergency_corridor.get('vehicle_type', 'AMBULANCE'),
+            resolved=is_recovery
+        )
+        emergency_corridor["voice_script"] = voice_script
+
+        # 8. Analytics Agent
+        analytics_summary = process_analytics_rule_based(traffic_report, congestion_prediction, signal_optimization)
 
         return {
             "execution_timestamp": datetime.utcnow().isoformat(),
-            "intersection_code": vision_out.get("intersection_code", "INT-01"),
-            "vision": vision_out,
-            "driver_safety": driver_safety_out,
-            "analysis": analysis_out,
-            "prediction": prediction_out,
-            "pollution": pollution_out,
-            "emergency": emergency_out,
-            "decision": decision_out
+            "road_monitored": telemetry.get("road_name", telemetry.get("road", "Main Road")),
+            "traffic_report": traffic_report,
+            "driver_safety": driver_safety,
+            "congestion_prediction": congestion_prediction,
+            "emergency_corridor": emergency_corridor,
+            "weather_adaptation": weather_adaptation,
+            "signal_optimization": signal_optimization,
+            "citizen_alerts": citizen_alerts,
+            "analytics_summary": analytics_summary
         }
 
     def _run_crewai_agent_flow(self, telemetry: Dict[str, Any]) -> Dict[str, Any]:
         """Execute CrewAI multi-agent sequential pipeline."""
         agents = {
-            "vision": create_vision_agent(),
+            "monitor": create_traffic_monitor_agent(),
             "driver_safety": create_driver_safety_agent(),
-            "traffic_analysis": create_traffic_analysis_agent(),
-            "prediction": create_prediction_agent(),
-            "pollution": create_pollution_agent(),
+            "congestion": create_congestion_agent(),
             "emergency": create_emergency_agent(),
-            "decision": create_decision_agent()
+            "signal": create_signal_agent(),
+            "citizen": create_citizen_agent(),
+            "analytics": create_analytics_agent()
         }
 
         agents = {k: v for k, v in agents.items() if v is not None}
-
         tasks = create_traffic_tasks(agents, telemetry)
 
         crew = Crew(
@@ -162,8 +253,6 @@ class SmartTrafficCrew:
         return base
 
 
-
 def run_traffic_crew(telemetry_input: Dict[str, Any], registered_phone: Optional[str] = None) -> Dict[str, Any]:
     orchestrator = SmartTrafficCrew()
     return orchestrator.run(telemetry_input, registered_phone=registered_phone)
-

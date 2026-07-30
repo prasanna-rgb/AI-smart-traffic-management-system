@@ -164,3 +164,48 @@ class DriverSafetyLogDB(Base):
             "risk_prediction": json.loads(self.prediction_json) if self.prediction_json else {}
         }
 
+
+class EmergencyEventDB(Base):
+    """Emergency Events & Response Logs Table."""
+    __tablename__ = "emergency_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    event_id = Column(String(100), nullable=False, index=True)
+    event_type = Column(String(100), nullable=False)
+    severity = Column(String(50), nullable=False)
+    road_name = Column(String(100), nullable=False, index=True)
+    latitude = Column(Float, default=13.0827)
+    longitude = Column(Float, default=80.2707)
+    emergency_vehicle_type = Column(String(50), default="NONE")
+    signal_before = Column(String(50), default="Green 30s / Red 30s")
+    signal_after = Column(String(50), default="Green 50s / Red 15s")
+    green_time_before = Column(Integer, default=30)
+    green_time_after = Column(Integer, default=50)
+    voice_alert_sent = Column(Boolean, default=False)
+    citizen_alert_sent = Column(Boolean, default=False)
+    status = Column(String(50), default="ACTIVE")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "event_id": self.event_id,
+            "event_type": self.event_type,
+            "severity": self.severity,
+            "road_name": self.road_name,
+            "location": {
+                "latitude": self.latitude,
+                "longitude": self.longitude
+            },
+            "emergency_vehicle_type": self.emergency_vehicle_type,
+            "signal_before": self.signal_before,
+            "signal_after": self.signal_after,
+            "green_time_before": self.green_time_before,
+            "green_time_after": self.green_time_after,
+            "voice_alert_sent": self.voice_alert_sent,
+            "citizen_alert_sent": self.citizen_alert_sent,
+            "status": self.status
+        }
+
+

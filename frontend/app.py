@@ -442,6 +442,56 @@ if sim_mode == "Manual Scenario Injection":
             run_traffic_crew(custom_input, registered_phone=reg_phone)
             st.sidebar.success(f"Custom telemetry frame processed for {selected_road}")
             st.rerun()
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("#### 🚨 Quick Emergency Scenario Triggers")
+    col_sc1, col_sc2 = st.sidebar.columns(2)
+    with col_sc1:
+        if st.button("🔴 Accident", use_container_width=True):
+            sim_data = {
+                "road": selected_road,
+                "vehicle_count": 80,
+                "average_speed": 22.0,
+                "accident": True,
+                "accident_status": True,
+                "emergency_vehicle": False
+            }
+            run_traffic_crew(sim_data, registered_phone=reg_phone)
+            st.rerun()
+        if st.button("🚑 Ambulance", use_container_width=True):
+            sim_data = {
+                "road": selected_road,
+                "vehicle_count": 160,
+                "average_speed": 14.0,
+                "accident": True,
+                "emergency_vehicle": True,
+                "emergency_type": "Ambulance"
+            }
+            run_traffic_crew(sim_data, registered_phone=reg_phone)
+            st.rerun()
+    with col_sc2:
+        if st.button("🚒 Fire Truck", use_container_width=True):
+            sim_data = {
+                "road": selected_road,
+                "vehicle_count": 140,
+                "average_speed": 18.0,
+                "accident": True,
+                "emergency_vehicle": True,
+                "emergency_type": "Fire Truck"
+            }
+            run_traffic_crew(sim_data, registered_phone=reg_phone)
+            st.rerun()
+        if st.button("✅ Resolve All", use_container_width=True):
+            sim_data = {
+                "road": selected_road,
+                "vehicle_count": 45,
+                "average_speed": 50.0,
+                "accident": False,
+                "emergency_vehicle": False,
+                "accident_resolved": True,
+                "emergency_vehicle_passed": True
+            }
+            run_traffic_crew(sim_data, registered_phone=reg_phone)
+            st.rerun()
 else:
     st.sidebar.caption("🌐 Currently pulling live real-time weather & traffic telemetry via Open-Meteo API & OpenStreetMap GPS coordinates.")
     if st.sidebar.button("⚡ Fetch Live Real-Time API Feed & Run Agents", use_container_width=True):
@@ -453,6 +503,7 @@ else:
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🔊 System Controls")
+
 enable_voice = st.sidebar.toggle("Enable Audio Alerts", value=True)
 
 st.sidebar.markdown("---")
@@ -937,49 +988,126 @@ with tab_gis:
         st.pydeck_chart(deck, use_container_width=True)
 
 with tab2:
-    st.markdown("#### 🚦 Signal Controllers & Intersection Preemption")
+    st.markdown("#### 🚨 Emergency Response Status & Dynamic Signal Control")
 
-    col_sig1, col_sig2 = st.columns([1, 2])
+    # 1. Emergency Status Summary Card
+    has_emerg = (e_corr.get("emergency_detected", False) or t_rep.get("accident_status", False) or e_corr.get("green_corridor_active", False))
+    status_badge_bg = "#DC2626" if has_emerg else "#059669"
+    status_text = f"🚨 EMERGENCY MODE ACTIVE ({e_corr.get('event_type', 'ACCIDENT')})" if has_emerg else "🟢 NORMAL ADAPTIVE OPERATIONS"
+
+    st.markdown(
+        f"""
+        <div style="background: #0F172A; border: 2px solid {status_badge_bg}; border-radius: 12px; padding: 1.2rem; margin-bottom: 1.2rem; color: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 10px;">
+                <div style="font-size: 1.1rem; font-weight: 700; color: {status_badge_bg};">{status_text}</div>
+                <div style="font-size: 0.85rem; color: #94A3B8;">📍 Location: <b>{selected_road}</b> ({current_telemetry.get('latitude', 13.0827)}, {current_telemetry.get('longitude', 80.2707)})</div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; font-size: 0.88rem;">
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>⚠️ Accident Detected:</b> <span style="color: {'#EF4444' if t_rep.get('accident_status') else '#34D399'};">{"YES" if t_rep.get('accident_status') else "NO"}</span></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>🔥 Severity:</b> <span style="color: {'#EF4444' if e_corr.get('severity') == 'CRITICAL' else '#F59E0B'};">{e_corr.get('severity', 'NORMAL')}</span></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>🚑 Emergency Vehicle:</b> <span style="color: #38BDF8;">{e_corr.get('vehicle_type', 'NONE')}</span></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>🚦 Green Corridor:</b> <span style="color: {'#34D399' if e_corr.get('green_corridor_active') else '#94A3B8'};">{"ACTIVE" if e_corr.get('green_corridor_active') else "INACTIVE"}</span></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>⏱️ Signal Extension:</b> <span style="color: #38BDF8;">+{s_opt.get('dynamic_increase_sec', 0)}s</span></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>📢 Citizen Alert:</b> <span style="color: #34D399;">SENT</span></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 2. Side-by-side Signal Timer Visualization Component
+    col_sig1, col_sig2 = st.columns([1, 1])
+
     with col_sig1:
-        st.subheader("Signal Mode")
-        st.info(f"**Current Mode:** {s_opt.get('signal_mode', 'Standard')}")
-        
-        fig_gauge = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=s_opt.get('recommended_green_time_sec', 30),
-            title={'text': "Green Light Duration (Sec)"},
-            gauge={
-                'axis': {'range': [0, 120]},
-                'bar': {'color': "#2563EB"},
-                'steps': [
-                    {'range': [0, 35], 'color': "#F1F5F9"},
-                    {'range': [35, 75], 'color': "#E2E8F0"},
-                    {'range': [75, 120], 'color': "#CBD5E1"}
-                ],
-                'threshold': {
-                    'line': {'color': "red", 'width': 4},
-                    'thickness': 0.75,
-                    'value': 90
-                }
-            }
-        ))
-        fig_gauge.update_layout(height=280, margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_gauge, use_container_width=True)
+        st.markdown("##### 🟢 NORMAL SIGNAL TIMING")
+        st.markdown(
+            """
+            <div style="background: #1E293B; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; font-weight: 600; color: #34D399; font-size: 0.9rem;">
+                    <span>🟢 Green Phase</span><span>30 sec</span>
+                </div>
+                <div style="background: #334155; height: 10px; border-radius: 5px; margin: 4px 0 10px 0;">
+                    <div style="background: #34D399; width: 46%; height: 10px; border-radius: 5px;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-weight: 600; color: #FBBF24; font-size: 0.9rem;">
+                    <span>🟡 Yellow Phase</span><span>5 sec</span>
+                </div>
+                <div style="background: #334155; height: 10px; border-radius: 5px; margin: 4px 0 10px 0;">
+                    <div style="background: #FBBF24; width: 8%; height: 10px; border-radius: 5px;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-weight: 600; color: #F87171; font-size: 0.9rem;">
+                    <span>🔴 Red Phase</span><span>30 sec</span>
+                </div>
+                <div style="background: #334155; height: 10px; border-radius: 5px; margin: 4px 0;">
+                    <div style="background: #F87171; width: 46%; height: 10px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     with col_sig2:
-        st.subheader("Intersections Grid Status Table")
-        junction_data = []
-        for r_name in ROADS:
-            is_active_road = (r_name == selected_road)
-            g_sec = s_opt.get('recommended_green_time_sec') if is_active_road else 30
-            mode = s_opt.get('signal_mode') if is_active_road else "Standard"
-            junction_data.append({
-                "Junction / Road": r_name,
-                "Signal Mode": mode,
-                "Green Phase (sec)": g_sec,
-                "Status": "🟢 Green Lock" if (is_active_road and e_corr.get("green_corridor_active")) else "🟡 Adaptive"
-            })
-        st.dataframe(pd.DataFrame(junction_data), use_container_width=True)
+        mode_title = "🚨 EMERGENCY / GREEN CORRIDOR TIMING" if has_emerg else "⚡ ADAPTIVE DYNAMIC TIMING"
+        curr_green = s_opt.get("recommended_green_time_sec", 50)
+        curr_yellow = s_opt.get("recommended_yellow_time_sec", 5)
+        curr_red = s_opt.get("recommended_red_time_sec", 15)
+
+        st.markdown(f"##### {mode_title}")
+        st.markdown(
+            f"""
+            <div style="background: #1E293B; border-radius: 8px; padding: 12px; margin-bottom: 10px; border: 1px solid {'#EF4444' if has_emerg else '#0284C7'};">
+                <div style="display: flex; justify-content: space-between; font-weight: 600; color: #34D399; font-size: 0.9rem;">
+                    <span>🟢 Green Phase (+{s_opt.get('dynamic_increase_sec', 0)}s)</span><span>{curr_green} sec</span>
+                </div>
+                <div style="background: #334155; height: 10px; border-radius: 5px; margin: 4px 0 10px 0;">
+                    <div style="background: #34D399; width: {min(100, int((curr_green/110)*100))}%; height: 10px; border-radius: 5px;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-weight: 600; color: #FBBF24; font-size: 0.9rem;">
+                    <span>🟡 Yellow Phase</span><span>{curr_yellow} sec</span>
+                </div>
+                <div style="background: #334155; height: 10px; border-radius: 5px; margin: 4px 0 10px 0;">
+                    <div style="background: #FBBF24; width: 8%; height: 10px; border-radius: 5px;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-weight: 600; color: #F87171; font-size: 0.9rem;">
+                    <span>🔴 Red Phase (Reduced Wait)</span><span>{curr_red} sec</span>
+                </div>
+                <div style="background: #334155; height: 10px; border-radius: 5px; margin: 4px 0;">
+                    <div style="background: #F87171; width: {min(100, int((curr_red/110)*100))}%; height: 10px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # 3. AI Signal Decision Explanation Card
+    ai_exp = s_opt.get("ai_explanation", {})
+    st.markdown("##### 🧠 AI Signal Decision Explanation")
+    st.markdown(
+        f"""
+        <div style="background: #0F172A; border: 1px solid #334155; border-radius: 8px; padding: 12px 16px; font-size: 0.88rem; color: #E2E8F0; margin-bottom: 1.2rem;">
+            <div style="margin-bottom: 6px;"><b>Emergency Detected:</b> <span style="color: {'#EF4444' if ai_exp.get('emergency_detected') else '#34D399'};">{"YES" if ai_exp.get('emergency_detected') else "NO"}</span> | <b>Traffic Density:</b> {ai_exp.get('traffic_density', 'MEDIUM')} | <b>Emergency Vehicle:</b> {ai_exp.get('emergency_vehicle', 'NONE')}</div>
+            <div style="margin-bottom: 6px;"><b>Action Taken:</b> <span style="color: #38BDF8; font-weight: 700;">{ai_exp.get('action', 'Maintain standard timing')}</span> | <b>Previous Green:</b> {ai_exp.get('previous_green_sec', 30)}s ➔ <b>New Green:</b> {ai_exp.get('new_green_sec', 50)}s</div>
+            <div style="margin-bottom: 6px; color: #94A3B8;"><b>Reason:</b> {ai_exp.get('reason', 'Normal operations')}</div>
+            <div style="color: #34D399; font-size: 0.82rem;">✔️ {ai_exp.get('safety_notes', 'Safety interlocks verified')}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.subheader("Intersections Grid Status Table")
+    junction_data = []
+    for r_name in ROADS:
+        is_active_road = (r_name == selected_road)
+        g_sec = s_opt.get('recommended_green_time_sec') if is_active_road else 30
+        mode = s_opt.get('signal_mode') if is_active_road else "Standard"
+        junction_data.append({
+            "Junction / Road": r_name,
+            "Signal Mode": mode,
+            "Green Phase (sec)": g_sec,
+            "Status": "🟢 Green Lock" if (is_active_road and e_corr.get("green_corridor_active")) else "🟡 Adaptive"
+        })
+    st.dataframe(pd.DataFrame(junction_data), use_container_width=True)
+
 
 with tab3:
     st.markdown("#### 📢 Citizen Broadcast Feed & WhatsApp Alert Simulator")
