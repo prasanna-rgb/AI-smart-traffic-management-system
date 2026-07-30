@@ -5,7 +5,8 @@ Coordinates Vision, Traffic Analysis, Prediction, Pollution, Emergency, and Deci
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+
 
 try:
     from crewai import Crew, Process
@@ -51,9 +52,12 @@ class SmartTrafficCrew:
     def __init__(self):
         self.llm = get_llm()
 
-    def run(self, telemetry_input: Dict[str, Any]) -> Dict[str, Any]:
+    def run(self, telemetry_input: Dict[str, Any], registered_phone: Optional[str] = None) -> Dict[str, Any]:
         """Execute full 6-agent traffic optimization pipeline."""
+        if registered_phone and isinstance(telemetry_input, dict):
+            telemetry_input["registered_phone"] = registered_phone
         code = telemetry_input.get("intersection_code", telemetry_input.get("road", "INT-01"))
+
         logger.info(f"Executing 6-Agent CrewAI Traffic Optimization Pipeline for: {code}")
 
         save_traffic_input(telemetry_input)
@@ -159,6 +163,7 @@ class SmartTrafficCrew:
 
 
 
-def run_traffic_crew(telemetry_input: Dict[str, Any]) -> Dict[str, Any]:
+def run_traffic_crew(telemetry_input: Dict[str, Any], registered_phone: Optional[str] = None) -> Dict[str, Any]:
     orchestrator = SmartTrafficCrew()
-    return orchestrator.run(telemetry_input)
+    return orchestrator.run(telemetry_input, registered_phone=registered_phone)
+

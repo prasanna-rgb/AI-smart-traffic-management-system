@@ -5,7 +5,8 @@ Manages sequential agent execution and database persistence.
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+
 
 try:
     from crewai import Crew, Process
@@ -32,22 +33,29 @@ from database.db import (
 )
 
 
+logger = logging.getLogger("smart_traffic_ai.crew")
+
+
 class SmartTrafficCrew:
+
     """Orchestrator class for managing the 7-agent CrewAI traffic pipeline."""
 
     def __init__(self):
         self.llm = get_llm()
 
-    def run(self, telemetry_input: Dict[str, Any]) -> Dict[str, Any]:
+    def run(self, telemetry_input: Dict[str, Any], registered_phone: Optional[str] = None) -> Dict[str, Any]:
         """
         Execute full multi-agent traffic optimization pipeline.
         
         Args:
             telemetry_input: Dictionary with traffic metrics.
+            registered_phone: Optional phone number for citizen alerts.
             
         Returns:
             JSON summary of all 7 agents' decisions.
         """
+        if registered_phone and isinstance(telemetry_input, dict):
+            telemetry_input["registered_phone"] = registered_phone
         road_name = telemetry_input.get("road", "Main Road")
         logger.info(f"Starting Multi-Agent Traffic Pipeline for: {road_name}")
 
@@ -193,6 +201,7 @@ class SmartTrafficCrew:
 
 
 # Singleton instance helper
-def run_traffic_crew(telemetry_input: Dict[str, Any]) -> Dict[str, Any]:
+def run_traffic_crew(telemetry_input: Dict[str, Any], registered_phone: Optional[str] = None) -> Dict[str, Any]:
     orchestrator = SmartTrafficCrew()
-    return orchestrator.run(telemetry_input)
+    return orchestrator.run(telemetry_input, registered_phone=registered_phone)
+
