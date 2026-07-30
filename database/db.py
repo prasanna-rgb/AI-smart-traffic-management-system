@@ -11,7 +11,44 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from config.settings import DATABASE_URL
-from database.models import Base, TrafficDataDB, TrafficReportDB, AlertDB, AnalyticsDB, DriverSafetyLogDB, EmergencyEventDB
+from database.models import Base, TrafficDataDB, TrafficReportDB, AlertDB, AnalyticsDB, DriverSafetyLogDB, EmergencyEventDB, ScenarioSimulationDB
+
+def save_scenario_simulation(data: dict) -> Optional[ScenarioSimulationDB]:
+    """Persist scenario evaluation log to database."""
+    try:
+        with get_db() as db:
+            record = ScenarioSimulationDB(
+                timestamp=datetime.utcnow(),
+                scenario_id=data.get("scenario_id", f"SCEN-{uuid.uuid4().hex[:6].upper()}"),
+                road_name=data.get("road_name", data.get("road", "Main Road")),
+                current_conditions_json=json.dumps(data.get("current_conditions", {})),
+                scenario_action=data.get("scenario_action", data.get("action", "Standard Operations")),
+                predicted_congestion=int(data.get("predicted_congestion", 40)),
+                predicted_delay=int(data.get("predicted_delay", 5)),
+                predicted_emergency_time=int(data.get("predicted_emergency_time", 8)),
+                predicted_carbon=str(data.get("predicted_carbon", "MEDIUM")).upper(),
+                decision_score=float(data.get("decision_score", 50.0)),
+                selected=bool(data.get("selected", False)),
+                reason=data.get("reason", "")
+            )
+            db.add(record)
+            db.flush()
+            db.refresh(record)
+            return record
+    except Exception as err:
+        logger.warning(f"Failed to persist scenario simulation log: {err}")
+        return None
+
+
+def get_recent_scenario_simulations(limit: int = 20):
+    """Retrieve recent scenario simulations."""
+    try:
+        with get_db() as db:
+            records = db.query(ScenarioSimulationDB).order_by(ScenarioSimulationDB.timestamp.desc()).limit(limit).all()
+            return [r.to_dict() for r in records]
+    except Exception:
+        return []
+
 
 logger = logging.getLogger("smart_traffic_ai.database")
 

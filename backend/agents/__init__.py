@@ -1,22 +1,31 @@
-"""
-Agents Package Init: Exports all CrewAI Agents and their deterministic processing engines.
-"""
-from agents.vision_agent import create_vision_agent, process_vision_rule_based
-from agents.traffic_analysis_agent import create_traffic_analysis_agent, process_traffic_analysis_rule_based
-from agents.prediction_agent import create_prediction_agent, process_prediction_rule_based
-from agents.pollution_agent import create_pollution_agent, process_pollution_rule_based
-from agents.emergency_agent import create_emergency_agent, process_emergency_rule_based
-from agents.decision_agent import create_decision_agent, process_decision_rule_based
-from agents.driver_safety_agent import create_driver_safety_agent, process_driver_safety_rule_based
-from agents.weather_agent import create_weather_agent, process_weather_rule_based
+# Agents package initialization (Backend Package)
+from .traffic_monitor import create_traffic_monitor_agent, process_traffic_monitor_rule_based
+from .congestion_agent import create_congestion_agent, process_congestion_rule_based
+from .emergency_agent import create_emergency_agent, process_emergency_rule_based
+from .signal_agent import create_signal_agent, process_signal_rule_based
+from .citizen_agent import create_citizen_agent, process_citizen_rule_based
+from .analytics_agent import create_analytics_agent, process_analytics_rule_based
+from .driver_safety_agent import create_driver_safety_agent, process_driver_safety_rule_based
+from .weather_agent import create_weather_agent, process_weather_rule_based
+from .scenario_simulation_agent import create_scenario_simulation_agent, process_scenario_simulation_rule_based
 
 __all__ = [
-    "create_vision_agent", "process_vision_rule_based",
-    "create_driver_safety_agent", "process_driver_safety_rule_based",
-    "create_traffic_analysis_agent", "process_traffic_analysis_rule_based",
-    "create_prediction_agent", "process_prediction_rule_based",
-    "create_pollution_agent", "process_pollution_rule_based",
-    "create_emergency_agent", "process_emergency_rule_based",
-    "create_decision_agent", "process_decision_rule_based",
-    "create_weather_agent", "process_weather_rule_based"
+    "create_traffic_monitor_agent",
+    "process_traffic_monitor_rule_based",
+    "create_driver_safety_agent",
+    "process_driver_safety_rule_based",
+    "create_congestion_agent",
+    "process_congestion_rule_based",
+    "create_emergency_agent",
+    "process_emergency_rule_based",
+    "create_signal_agent",
+    "process_signal_rule_based",
+    "create_citizen_agent",
+    "process_citizen_rule_based",
+    "create_analytics_agent",
+    "process_analytics_rule_based",
+    "create_weather_agent",
+    "process_weather_rule_based",
+    "create_scenario_simulation_agent",
+    "process_scenario_simulation_rule_based"
 ]

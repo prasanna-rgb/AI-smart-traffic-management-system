@@ -777,8 +777,9 @@ with col5:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # Main Navigation Tabs
-tab1, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab_scen, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Executive Operations & Agent Flow", 
+    "🤖 AI Scenario Simulator",
     "🗺️ GIS Map & Google Satellite", 
     "🚦 Signal Controllers & Preemption", 
     "📢 Citizen Broadcast Feed", 
@@ -786,10 +787,10 @@ tab1, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
     "🛡️ V2I Pre-Crash Safety"
 ])
 
-
-
 # Extract new agent data
 v2i = full_report.get("v2i_precrash", {})
+sc_sim = full_report.get("scenario_simulation", {})
+
 
 with tab1:
     st.markdown("#### 🤖 CrewAI Multi-Agent Execution Trace")
@@ -873,7 +874,184 @@ with tab1:
             unsafe_allow_html=True
         )
 
+        st.markdown(
+            f"""
+            <div class='agent-row-card'>
+                <div class='agent-title-text' style='color: #6366F1;'>7. Scenario Simulation & Decision Agent</div>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Winning Strategy:</b> {sc_sim.get('winning_scenario_id', 'SCEN-C')}</p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Decision Score:</b> {sc_sim.get('decision_score', 91.5)} / 100</p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Predicted Congestion:</b> {sc_sim.get('expected_congestion', 38)}%</p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Predicted Response:</b> {sc_sim.get('emergency_response_time', 4)} mins</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+
+with tab_scen:
+    st.markdown("#### 🤖 AI Scenario Simulator & Decision Intelligence Layer")
+    st.caption("Proactively evaluates candidate actions ('What happens if I take this action?'), simulates multi-metric physics/queue outcomes, and scores strategies before signal execution.")
+
+    scen_data = full_report.get("scenario_simulation") or {}
+    win_action = scen_data.get("recommended_action", "Maintain standard 30s adaptive timing schedule")
+    win_score = scen_data.get("decision_score", 76.5)
+    win_cong = scen_data.get("expected_congestion", 38)
+    win_delay = scen_data.get("expected_delay", 6)
+    win_emerg = scen_data.get("emergency_response_time", 4)
+    win_carbon = scen_data.get("expected_carbon_emission", "LOW")
+    win_reason = scen_data.get("reason", "This strategy minimizes congestion and emergency response time while reducing carbon emissions.")
+
+    # 1. 🏆 AI RECOMMENDED ACTION BANNER
+    st.markdown(
+        f"""
+        <div style="background: linear-gradient(135deg, #0F172A 0%, #1E1B4B 100%); border: 2px solid #6366F1; border-radius: 12px; padding: 1.4rem; margin-bottom: 1.4rem; color: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 10px;">
+                <div>
+                    <span style="background: #6366F1; color: white; padding: 4px 12px; border-radius: 6px; font-weight: 800; font-size: 0.82rem;">🏆 AI RECOMMENDED ACTION</span>
+                    <h3 style="margin: 8px 0 2px 0; color: #38BDF8; font-size: 1.25rem;">{win_action}</h3>
+                </div>
+                <div style="text-align: right; background: #312E81; padding: 8px 16px; border-radius: 8px; border: 1px solid #818CF8;">
+                    <div style="font-size: 0.75rem; color: #A5B4FC; font-weight: 600;">DECISION SCORE</div>
+                    <div style="font-size: 1.6rem; font-weight: 900; color: #34D399;">{win_score}<span style="font-size: 0.9rem; color: #94A3B8;">/100</span></div>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; font-size: 0.85rem; margin-top: 12px;">
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>Expected Congestion:</b> <b style="color: #34D399;">{win_cong}%</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>Expected Delay:</b> <b style="color: #38BDF8;">{win_delay} min</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>Emergency Response:</b> <b style="color: #FBBF24;">{win_emerg} min</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>CO₂ Impact:</b> <b style="color: {'#34D399' if win_carbon == 'LOW' else '#F87171'};">{win_carbon}</b></div>
+            </div>
+            <div style="margin-top: 12px; font-size: 0.85rem; color: #CBD5E1; background: #0F172A; padding: 10px 14px; border-radius: 6px; border-left: 4px solid #34D399;">
+                <b>🧠 AI Decision Explanation:</b> {win_reason}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 2. BEFORE VS AFTER COMPARISON GRID
+    st.markdown("##### ⚡ BEFORE VS AFTER AI DECISION COMPARISON")
+    actual_b = scen_data.get("actual_baseline", {"congestion": 82, "delay": 18, "emergency_response": 14, "carbon": "HIGH"})
+    after_p = scen_data.get("after_predicted", {"congestion": 38, "delay": 6, "emergency_response": 4, "carbon": "LOW"})
+
+    col_ba1, col_ba2 = st.columns(2)
+    with col_ba1:
+        st.markdown(
+            f"""
+            <div style="background: #0F172A; border: 1px solid #EF4444; border-radius: 10px; padding: 1rem; color: white;">
+                <div style="font-weight: 700; color: #F87171; font-size: 0.95rem; margin-bottom: 8px;">🔴 CURRENT / ACTUAL BASELINE</div>
+                <div style="font-size: 0.85rem; line-height: 1.6;">
+                    <div><b>Congestion Level:</b> <span style="color: #F87171; font-weight: 700;">{actual_b.get('congestion')}%</span></div>
+                    <div><b>Travel Delay:</b> {actual_b.get('delay')} minutes</div>
+                    <div><b>Emergency Response Time:</b> {actual_b.get('emergency_response')} minutes</div>
+                    <div><b>Carbon Emission:</b> <span style="color: #F87171;">{actual_b.get('carbon')}</span></div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    with col_ba2:
+        st.markdown(
+            f"""
+            <div style="background: #0F172A; border: 1px solid #34D399; border-radius: 10px; padding: 1rem; color: white;">
+                <div style="font-weight: 700; color: #34D399; font-size: 0.95rem; margin-bottom: 8px;">🟢 AFTER AI DECISION (PREDICTED)</div>
+                <div style="font-size: 0.85rem; line-height: 1.6;">
+                    <div><b>Predicted Congestion:</b> <span style="color: #34D399; font-weight: 700;">{after_p.get('congestion')}%</span></div>
+                    <div><b>Expected Delay:</b> {after_p.get('delay')} minutes</div>
+                    <div><b>Expected Emergency Response:</b> {after_p.get('emergency_response')} minutes</div>
+                    <div><b>Predicted Carbon Output:</b> <span style="color: #34D399;">{after_p.get('carbon')}</span></div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # 3. EVALUATED SCENARIOS GRID
+    st.markdown("<br>##### 🔬 CANDIDATE SCENARIOS EVALUATED & RANKED", unsafe_allow_html=True)
+    eval_scens = scen_data.get("scenarios_evaluated", [
+        {"scenario_id": "SCEN-A", "name": "Scenario A: Maintain Current Timing", "action": "Maintain 30s timing", "predicted_congestion": 82, "predicted_delay": 18, "predicted_emergency_time": 14, "predicted_carbon": "HIGH", "decision_score": 42.0, "selected": False},
+        {"scenario_id": "SCEN-B", "name": "Scenario B: Extended Green Phase (+25s)", "action": "Extend green signal to 55s", "predicted_congestion": 62, "predicted_delay": 11, "predicted_emergency_time": 8, "predicted_carbon": "MEDIUM", "decision_score": 76.0, "selected": False},
+        {"scenario_id": "SCEN-C", "name": "Scenario C: Emergency Green Corridor", "action": "Activate Green Corridor (90s lock)", "predicted_congestion": 38, "predicted_delay": 6, "predicted_emergency_time": 4, "predicted_carbon": "LOW", "decision_score": 91.5, "selected": True}
+    ])
+
+    scen_cols = st.columns(len(eval_scens))
+    for idx, sc_item in enumerate(eval_scens):
+        with scen_cols[idx]:
+            is_win = sc_item.get("selected", False)
+            card_b = "#34D399" if is_win else "#334155"
+            badge = "🏆 WINNER" if is_win else f"RANK #{idx+1}"
+            badge_color = "#34D399" if is_win else "#94A3B8"
+
+            st.markdown(
+                f"""
+                <div style="background: #0F172A; border: 2px solid {card_b}; border-radius: 8px; padding: 12px; color: white; height: 100%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-weight: 700; font-size: 0.8rem; color: #38BDF8;">{sc_item.get('scenario_id')}</span>
+                        <span style="font-weight: 800; font-size: 0.75rem; color: {badge_color}; background: #1E293B; padding: 2px 6px; border-radius: 4px;">{badge}</span>
+                    </div>
+                    <div style="font-weight: 700; font-size: 0.88rem; color: #E2E8F0; margin-bottom: 6px;">{sc_item.get('name')}</div>
+                    <div style="font-size: 1.3rem; font-weight: 800; color: {'#34D399' if is_win else '#FBBF24'}; margin-bottom: 8px;">Score: {sc_item.get('decision_score')}/100</div>
+                    <div style="font-size: 0.78rem; color: #94A3B8; line-height: 1.5;">
+                        <div>• Congestion: <b>{sc_item.get('predicted_congestion')}%</b></div>
+                        <div>• Delay: <b>{sc_item.get('predicted_delay')} min</b></div>
+                        <div>• Emerg. Time: <b>{sc_item.get('predicted_emergency_time')} min</b></div>
+                        <div>• CO₂: <b>{sc_item.get('predicted_carbon')}</b></div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+    # 4. INNOVATIVE WHAT-IF ANALYSIS INTERACTIVE SANDBOX
+    st.markdown("<br>##### 🧪 INNOVATIVE WHAT-IF ANALYSIS INTERACTIVE SANDBOX", unsafe_allow_html=True)
+    st.caption("Adjust parameters below to evaluate real-time AI predictions: 'What happens if this value changes?'")
+
+    wcol1, wcol2, wcol3 = st.columns(3)
+    with wcol1:
+        sandbox_g_time = st.slider("Green Signal Duration (sec)", min_value=10, max_value=120, value=50, step=5)
+        sandbox_veh = st.slider("Traffic Volume (Vehicles/hr)", min_value=10, max_value=250, value=int(current_telemetry.get("vehicle_count", 90)), step=10)
+    with wcol2:
+        sandbox_emerg = st.selectbox("Emergency Vehicle Status", ["None", "Ambulance (Medical Emergency)", "Fire Truck (Fire Response)", "Police Vehicle (Pursuit)"])
+        sandbox_acc = st.checkbox("Accident Reported on Lane", value=bool(current_telemetry.get("accident", False)))
+    with wcol3:
+        sandbox_weather = st.selectbox("Weather Condition", ["CLEAR", "RAIN", "FOG", "STORM"])
+        sandbox_reroute = st.checkbox("Enable Alternate Route Diversion", value=False)
+
+    sb_input = {
+        "road": selected_road,
+        "vehicle_count": sandbox_veh,
+        "average_speed": max(10.0, 60.0 - (sandbox_veh * 0.2)),
+        "congestion_level": min(100, int((sandbox_veh / 180.0) * 100)),
+        "accident": sandbox_acc,
+        "emergency_vehicle": (sandbox_emerg != "None"),
+        "emergency_type": sandbox_emerg.split()[0] if sandbox_emerg != "None" else "NONE",
+        "weather": sandbox_weather
+    }
+
+    from tools.scenario_simulation_tools import ScenarioSimulator
+    sb_res = ScenarioSimulator.simulate_scenarios(sb_input)
+    sb_win = sb_res.get("after_predicted", {})
+
+    st.markdown(
+        f"""
+        <div style="background: #0F172A; border: 2px dashed #38BDF8; border-radius: 10px; padding: 1.2rem; margin-top: 1rem; color: white;">
+            <div style="font-weight: 700; color: #38BDF8; font-size: 1rem; margin-bottom: 8px;">🔮 WHAT-IF PREDICTION OUTCOME</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; font-size: 0.88rem;">
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Predicted Congestion:</b> <b style="color: #34D399;">{sb_win.get('congestion')}%</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Expected Delay:</b> <b style="color: #38BDF8;">{sb_win.get('delay')} min</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Emergency Response:</b> <b style="color: #FBBF24;">{sb_win.get('emergency_response')} min</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Predicted CO₂ Impact:</b> <b style="color: #34D399;">{sb_win.get('carbon')}</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Simulated Decision Score:</b> <b style="color: #34D399;">{sb_res.get('decision_score')}/100</b></div>
+            </div>
+            <div style="margin-top: 8px; font-size: 0.82rem; color: #94A3B8;"><b>Recommended Strategy:</b> {sb_res.get('recommended_action')}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 with tab_gis:
+
     st.markdown("#### 🗺️ Geospatial GIS Visualizer & Google Maps Layer")
     st.caption("Multi-engine geospatial mapping with Google Maps Satellite Hybrid and PyDeck 3D pillars")
 

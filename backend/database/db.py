@@ -22,8 +22,63 @@ from database.models import (
     TrafficReportDB,
     AlertDB,
     AnalyticsDB,
-    DriverSafetyLogDB
+    DriverSafetyLogDB,
+    ScenarioSimulationDB
 )
+
+def save_scenario_simulation(db_or_data: Any, simulation_data: Optional[Dict[str, Any]] = None):
+    """Flexible scenario simulation log persistence supporting 1-arg or 2-arg calls."""
+    if isinstance(db_or_data, dict) and simulation_data is None:
+        data = db_or_data
+        db = SessionLocal()
+        should_close = True
+    else:
+        db = db_or_data
+        data = simulation_data or {}
+        should_close = False
+
+    try:
+        record = ScenarioSimulationDB(
+            timestamp=datetime.utcnow(),
+            scenario_id=data.get("scenario_id", f"SCEN-{uuid.uuid4().hex[:6].upper()}"),
+            road_name=data.get("road_name", data.get("road", "Main Road")),
+            current_conditions_json=json.dumps(data.get("current_conditions", {})),
+            scenario_action=data.get("scenario_action", data.get("action", "Standard Operations")),
+            predicted_congestion=int(data.get("predicted_congestion", 40)),
+            predicted_delay=int(data.get("predicted_delay", 5)),
+            predicted_emergency_time=int(data.get("predicted_emergency_time", 8)),
+            predicted_carbon=str(data.get("predicted_carbon", "MEDIUM")).upper(),
+            decision_score=float(data.get("decision_score", 50.0)),
+            selected=bool(data.get("selected", False)),
+            reason=data.get("reason", "")
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return record.to_dict()
+    except Exception as err:
+        logger.warning(f"Failed to save scenario simulation in backend DB: {err}")
+        return None
+    finally:
+        if should_close and db:
+            db.close()
+
+
+def get_recent_scenario_simulations(db: Optional[Session] = None, limit: int = 20):
+    """Retrieve recent scenario simulations."""
+    should_close = False
+    if db is None:
+        db = SessionLocal()
+        should_close = True
+    try:
+        records = db.query(ScenarioSimulationDB).order_by(ScenarioSimulationDB.timestamp.desc()).limit(limit).all()
+        return [r.to_dict() for r in records]
+    except Exception:
+        return []
+    finally:
+        if should_close and db:
+            db.close()
+
 
 
 logger = logging.getLogger("smart_traffic_ai.database")

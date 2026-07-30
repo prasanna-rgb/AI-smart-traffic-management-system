@@ -25,6 +25,7 @@ from agents.citizen_agent import create_citizen_agent, process_citizen_rule_base
 from agents.analytics_agent import create_analytics_agent, process_analytics_rule_based
 from agents.driver_safety_agent import create_driver_safety_agent, process_driver_safety_rule_based
 from agents.weather_agent import create_weather_agent, process_weather_rule_based
+from agents.scenario_simulation_agent import create_scenario_simulation_agent, process_scenario_simulation_rule_based
 from tools.audio_announcer import get_emergency_voice_script
 from database.db import (
     save_traffic_input,
@@ -32,7 +33,8 @@ from database.db import (
     save_alert,
     save_analytics,
     save_driver_safety_log,
-    save_emergency_event
+    save_emergency_event,
+    save_scenario_simulation
 )
 
 logger = logging.getLogger("smart_traffic_ai.crew")
@@ -71,6 +73,7 @@ class SmartTrafficCrew:
         t_rep = report_dict["traffic_report"]
         d_safe = report_dict.get("driver_safety", {})
         c_pred = report_dict["congestion_prediction"]
+        sc_sim = report_dict.get("scenario_simulation", {})
         e_corr = report_dict["emergency_corridor"]
         s_opt = report_dict["signal_optimization"]
         c_alt = report_dict["citizen_alerts"]
@@ -162,6 +165,28 @@ class SmartTrafficCrew:
         # 3. Congestion Prediction Agent
         congestion_prediction = process_congestion_rule_based(traffic_report)
         
+        # 3.5 Traffic Scenario Simulation & Decision Agent (Decision Intelligence Layer)
+        scenario_simulation = process_scenario_simulation_rule_based(traffic_report, congestion_prediction)
+        
+        # Save winning scenario simulation log
+        if scenario_simulation and "winning_scenario_id" in scenario_simulation:
+            try:
+                save_scenario_simulation({
+                    "road_name": telemetry.get("road_name", telemetry.get("road", "Main Road")),
+                    "scenario_id": scenario_simulation.get("winning_scenario_id"),
+                    "current_conditions": scenario_simulation.get("actual_baseline", {}),
+                    "scenario_action": scenario_simulation.get("recommended_action"),
+                    "predicted_congestion": scenario_simulation.get("expected_congestion"),
+                    "predicted_delay": scenario_simulation.get("expected_delay"),
+                    "predicted_emergency_time": scenario_simulation.get("emergency_response_time"),
+                    "predicted_carbon": scenario_simulation.get("expected_carbon_emission"),
+                    "decision_score": scenario_simulation.get("decision_score"),
+                    "selected": True,
+                    "reason": scenario_simulation.get("reason")
+                })
+            except Exception as sc_err:
+                logger.warning(f"Failed to persist scenario simulation DB entry: {sc_err}")
+
         # 4. Emergency Vehicle Agent
         emergency_corridor = process_emergency_rule_based(traffic_report, congestion_prediction)
         
@@ -220,6 +245,7 @@ class SmartTrafficCrew:
             "traffic_report": traffic_report,
             "driver_safety": driver_safety,
             "congestion_prediction": congestion_prediction,
+            "scenario_simulation": scenario_simulation,
             "emergency_corridor": emergency_corridor,
             "weather_adaptation": weather_adaptation,
             "signal_optimization": signal_optimization,
@@ -233,6 +259,7 @@ class SmartTrafficCrew:
             "monitor": create_traffic_monitor_agent(),
             "driver_safety": create_driver_safety_agent(),
             "congestion": create_congestion_agent(),
+            "scenario_simulation": create_scenario_simulation_agent(),
             "emergency": create_emergency_agent(),
             "signal": create_signal_agent(),
             "citizen": create_citizen_agent(),

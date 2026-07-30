@@ -209,3 +209,40 @@ class EmergencyEventDB(Base):
         }
 
 
+class ScenarioSimulationDB(Base):
+    """Traffic Scenario Simulations & Decision Intelligence Table."""
+    __tablename__ = "scenario_simulations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    scenario_id = Column(String(100), nullable=False, index=True)
+    road_name = Column(String(100), nullable=False, index=True)
+    current_conditions_json = Column(Text, nullable=False)
+    scenario_action = Column(String(200), nullable=False)
+    predicted_congestion = Column(Integer, nullable=False)
+    predicted_delay = Column(Integer, nullable=False)
+    predicted_emergency_time = Column(Integer, nullable=False)
+    predicted_carbon = Column(String(50), default="MEDIUM")
+    decision_score = Column(Float, nullable=False)
+    selected = Column(Boolean, default=False)
+    reason = Column(Text, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "scenario_id": self.scenario_id,
+            "road_name": self.road_name,
+            "current_conditions": json.loads(self.current_conditions_json) if self.current_conditions_json else {},
+            "scenario_action": self.scenario_action,
+            "predicted_congestion": self.predicted_congestion,
+            "predicted_delay": self.predicted_delay,
+            "predicted_emergency_time": self.predicted_emergency_time,
+            "predicted_carbon": self.predicted_carbon,
+            "decision_score": self.decision_score,
+            "selected": self.selected,
+            "reason": self.reason
+        }
+
+
+

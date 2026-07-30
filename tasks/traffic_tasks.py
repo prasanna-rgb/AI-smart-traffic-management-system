@@ -108,7 +108,25 @@ def create_traffic_tasks(agents_dict: dict, telemetry_input: dict) -> list:
         )
         tasks_list.append(task_congestion)
 
+    # Task 3.5: Scenario Simulation & Decision Intelligence
+    if "scenario_simulation" in agents_dict:
+        task_scenario = Task(
+            description=(
+                f"Simulate candidate traffic management strategies for {road_name}.\n\n{input_prompt}\n\n"
+                f"Ask 'What will happen if I take this action?', generate candidate scenarios (maintain timing, green extension, emergency corridor, alternate route diversion), "
+                f"calculate predicted metrics (congestion, speed, wait time, delay, emergency response, carbon emissions), "
+                f"compute weighted decision scores (0-100), and recommend the winning action."
+            ),
+            expected_output=(
+                "JSON object with recommended_action, decision_score, expected_congestion, expected_delay, "
+                "emergency_response_time, expected_carbon_emission, confidence, reason, and scenarios_evaluated."
+            ),
+            agent=agents_dict["scenario_simulation"]
+        )
+        tasks_list.append(task_scenario)
+
     # Task 4: Emergency Vehicle Priority
+
     if "emergency" in agents_dict:
         task_emergency = Task(
             description="Inspect Traffic Report & Congestion data. If emergency vehicles are present, generate Green Corridor route and signal override commands.",
