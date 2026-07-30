@@ -483,29 +483,30 @@ st.sidebar.markdown("""
 
 # Fetch latest reports & telemetry
 reports = get_latest_reports(limit=20)
-filtered_reports = [r for r in reports if r.get("road_name") == selected_road]
+filtered_reports = [r for r in reports if isinstance(r, dict) and r.get("road_name") == selected_road]
 
-if not filtered_reports:
-    sim_data = TrafficSimulator.generate_random_telemetry(road=selected_road)
-    run_traffic_crew(sim_data, registered_phone=reg_phone)
-    reports = get_latest_reports(limit=20)
-    filtered_reports = [r for r in reports if r.get("road_name") == selected_road]
+full_report = {}
+if filtered_reports:
+    full_report = filtered_reports[0].get("full_report") or {}
 
-latest_report_obj = filtered_reports[0] if filtered_reports else (reports[0] if reports else {})
-full_report = latest_report_obj.get("full_report", {})
-
-if not full_report or not full_report.get("traffic_report"):
+if not full_report or not isinstance(full_report, dict) or not full_report.get("traffic_report"):
     sim_data = TrafficSimulator.generate_random_telemetry(road=selected_road)
     full_report = run_traffic_crew(sim_data, registered_phone=reg_phone)
 
-t_rep = full_report.get("traffic_report", {})
-d_safe = full_report.get("driver_safety", {})
-c_pred = full_report.get("congestion_prediction", {})
-e_corr = full_report.get("emergency_corridor", {})
-s_opt = full_report.get("signal_optimization", {})
-c_alt = full_report.get("citizen_alerts", {})
-a_sum = full_report.get("analytics_summary", {})
+t_rep = full_report.get("traffic_report") or {}
+d_safe = full_report.get("driver_safety") or {}
+c_pred = full_report.get("congestion_prediction") or {}
+e_corr = full_report.get("emergency_corridor") or {}
+s_opt = full_report.get("signal_optimization") or {}
+c_alt = full_report.get("citizen_alerts") or {}
+a_sum = full_report.get("analytics_summary") or {}
 
+# Extract guaranteed non-null metric values
+vehicles_val = t_rep.get("vehicles") if t_rep.get("vehicles") is not None else (t_rep.get("vehicle_count") if t_rep.get("vehicle_count") is not None else 50)
+density_val = t_rep.get("density") or "Medium"
+speed_val = t_rep.get("average_speed") if t_rep.get("average_speed") is not None else 40.0
+c_score_val = c_pred.get("congestion_score") if c_pred.get("congestion_score") is not None else 40.0
+g_time_val = s_opt.get("recommended_green_time_sec") if s_opt.get("recommended_green_time_sec") is not None else 30
 
 # Emergency Alert Banners & Audio Announcements
 if e_corr.get("green_corridor_active"):
@@ -581,7 +582,7 @@ with col1:
         f"""
         <div class='metric-box'>
             <div class='metric-head'>Vehicle Flow Rate</div>
-            <div class='metric-body'>{t_rep.get('vehicles', 0)}</div>
+            <div class='metric-body'>{vehicles_val}</div>
             <div class='metric-sub'>vehicles / hour</div>
         </div>
         """,
@@ -589,7 +590,6 @@ with col1:
     )
 
 with col2:
-    density_val = t_rep.get("density", "N/A")
     d_color = "#059669" if density_val == "Low" else ("#D97706" if density_val == "Medium" else "#DC2626")
     st.markdown(
         f"""
@@ -607,7 +607,7 @@ with col3:
         f"""
         <div class='metric-box'>
             <div class='metric-head'>Average Velocity</div>
-            <div class='metric-body'>{t_rep.get('average_speed', 0)}</div>
+            <div class='metric-body'>{speed_val}</div>
             <div class='metric-sub'>km / hour</div>
         </div>
         """,
@@ -615,12 +615,11 @@ with col3:
     )
 
 with col4:
-    c_score = c_pred.get('congestion_score', 0)
     st.markdown(
         f"""
         <div class='metric-box'>
             <div class='metric-head'>Congestion Index</div>
-            <div class='metric-body' style='color: #DB2777;'>{c_score}</div>
+            <div class='metric-body' style='color: #DB2777;'>{c_score_val}</div>
             <div class='metric-sub'>scale 0 to 100</div>
         </div>
         """,
@@ -628,17 +627,17 @@ with col4:
     )
 
 with col5:
-    g_time = s_opt.get('recommended_green_time_sec', 30)
     st.markdown(
         f"""
         <div class='metric-box'>
             <div class='metric-head'>Green Phase Target</div>
-            <div class='metric-body' style='color: #2563EB;'>{g_time}</div>
+            <div class='metric-body' style='color: #2563EB;'>{g_time_val}</div>
             <div class='metric-sub'>seconds duration</div>
         </div>
         """,
         unsafe_allow_html=True
     )
+
 
 st.markdown("<br>", unsafe_allow_html=True)
 

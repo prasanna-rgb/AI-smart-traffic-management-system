@@ -52,6 +52,14 @@ class TrafficReportDB(Base):
     full_report_json = Column(Text, nullable=False)
 
     def to_dict(self):
+        parsed_report = {}
+        if self.full_report_json:
+            try:
+                parsed_report = json.loads(self.full_report_json)
+                if isinstance(parsed_report, str):
+                    parsed_report = json.loads(parsed_report)
+            except Exception:
+                parsed_report = {}
         return {
             "id": self.id,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
@@ -60,8 +68,9 @@ class TrafficReportDB(Base):
             "congestion_score": self.congestion_score,
             "signal_mode": self.signal_mode,
             "green_corridor_active": self.green_corridor_active,
-            "full_report": json.loads(self.full_report_json) if self.full_report_json else {}
+            "full_report": parsed_report if isinstance(parsed_report, dict) else {}
         }
+
 
 
 class AlertDB(Base):
