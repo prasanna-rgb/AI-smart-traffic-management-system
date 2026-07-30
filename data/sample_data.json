@@ -1,0 +1,42 @@
+[
+  {
+    "road": "Main Road",
+    "vehicle_count": 92,
+    "average_speed": 22.5,
+    "road_occupancy_pct": 88.0,
+    "accident": false,
+    "emergency_vehicle": true,
+    "emergency_type": "Ambulance",
+    "weather": "Rain"
+  },
+  {
+    "road": "Broadway Ave",
+    "vehicle_count": 115,
+    "average_speed": 14.0,
+    "road_occupancy_pct": 94.5,
+    "accident": true,
+    "emergency_vehicle": false,
+    "emergency_type": null,
+    "weather": "Clear"
+  },
+  {
+    "road": "Express Highway",
+    "vehicle_count": 45,
+    "average_speed": 62.0,
+    "road_occupancy_pct": 35.0,
+    "accident": false,
+    "emergency_vehicle": false,
+    "emergency_type": null,
+    "weather": "Clear"
+  },
+  {
+    "road": "Downtown Ring",
+    "vehicle_count": 78,
+    "average_speed": 31.0,
+    "road_occupancy_pct": 72.0,
+    "accident": false,
+    "emergency_vehicle": true,
+    "emergency_type": "Fire Truck",
+    "weather": "Fog"
+  }
+]
