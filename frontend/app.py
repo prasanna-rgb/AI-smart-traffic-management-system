@@ -78,11 +78,22 @@ st.markdown("""
         color: #F8FAFC !important;
     }
 
+    /* Streamlit Top Navbar Header Dark Mode Fix */
+    header[data-testid="stHeader"], [data-testid="stHeader"], .stHeader, [data-testid="stToolbar"], [data-testid="stDecoration"], nav, header {
+        background-color: #0B0F19 !important;
+        background: #0B0F19 !important;
+        color: #F8FAFC !important;
+    }
+    header[data-testid="stHeader"] *, [data-testid="stHeader"] * {
+        color: #F8FAFC !important;
+    }
+
     /* Top Navigation & Headings */
     h1, h2, h3, h4, h5, h6, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
         color: #FFFFFF !important;
         font-weight: 700 !important;
     }
+
 
     p, span, label, legend, [data-testid="stWidgetLabel"] {
         color: #E2E8F0 !important;

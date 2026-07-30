@@ -21,8 +21,9 @@ export default function Navbar({ intersections, selectedCode, onSelectCode, onTr
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-bold tracking-tight text-white">Smart Traffic AI</h1>
               <span className="px-2 py-0.5 text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-full">
-                6-AGENT CREW
+                7-AGENT CREW
               </span>
+
             </div>
             <p className="text-xs text-slate-400">Autonomous Multi-Agent Intersection Controller & Vision Engine</p>
           </div>

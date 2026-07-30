@@ -76,14 +76,15 @@ st.markdown("""
     }
 
     /* Streamlit Top Navbar Header Dark Mode */
-    header[data-testid="stHeader"], [data-testid="stHeader"], .stHeader, [data-testid="stToolbar"], [data-testid="stDecoration"] {
+    header[data-testid="stHeader"], [data-testid="stHeader"], .stHeader, [data-testid="stToolbar"], [data-testid="stDecoration"], nav, header {
         background-color: #0B0F19 !important;
         background: #0B0F19 !important;
         color: #F8FAFC !important;
     }
-    header[data-testid="stHeader"] * {
+    header[data-testid="stHeader"] *, [data-testid="stHeader"] * {
         color: #F8FAFC !important;
     }
+
 
     /* Universal Text Contrast */
     h1, h2, h3, h4, h5, h6, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
