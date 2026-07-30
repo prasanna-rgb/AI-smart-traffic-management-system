@@ -22,7 +22,6 @@ from tools.simulation_tools import TrafficSimulator
 
 logger = logging.getLogger("smart_traffic_ai.traffic")
 
-# Preset junction GPS coordinates for supported roads
 ROAD_COORDINATES = {
     "Main Road": {"latitude": 13.0827, "longitude": 80.2707, "road_id": "R001"},
     "Broadway Ave": {"latitude": 13.0810, "longitude": 80.2690, "road_id": "R002"},
@@ -37,17 +36,7 @@ class TrafficDataValidator:
 
     @staticmethod
     def validate_and_sanitize(data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Validates bounds:
-        - vehicle_count >= 0
-        - average_speed >= 0
-        - congestion_level between 0 and 100
-        - latitude between -90 and 90
-        - longitude between -180 and 180
-        - travel_time >= 0
-        - normal_travel_time >= 0
-        Missing values are marked as 'unavailable'.
-        """
+        """Validates numeric ranges and sanitizes missing values to 'unavailable'."""
         sanitized = dict(data)
 
         # Vehicle count validation
@@ -115,21 +104,25 @@ class TrafficDataValidator:
         sanitized["weather"] = str(sanitized.get("weather", "CLEAR")).upper()
         sanitized["road_id"] = str(sanitized.get("road_id", "R001"))
         sanitized["road_name"] = str(sanitized.get("road_name", "Main Road"))
+
+        now_utc = datetime.utcnow()
         if not sanitized.get("timestamp"):
-            sanitized["timestamp"] = datetime.utcnow().isoformat()
+            sanitized["timestamp"] = now_utc.isoformat()
+        if not sanitized.get("time_display"):
+            sanitized["time_display"] = datetime.now().strftime("%H:%M:%S")
 
         return sanitized
 
 
 class TrafficDataFetcher:
-    """Fetches traffic data from Google Maps API or fallback telemetry engine."""
+    """Fetches traffic data from Google Maps API or time-aware telemetry fallback."""
 
     @classmethod
     def fetch_google_maps_traffic(cls, origin: str, destination: str) -> Tuple[bool, Dict[str, Any]]:
         """Fetch live traffic delay and travel times via Google Maps Distance Matrix API."""
         api_key = os.getenv("GOOGLE_MAPS_API_KEY")
         if not api_key or api_key.strip() in ["", "your_google_maps_api_key_here"]:
-            logger.info("[TRAFFIC] Google Maps API Key not set. Using telemetry engine fallback.")
+            logger.info("[TRAFFIC] Google Maps API Key not set. Using time-aware telemetry fallback.")
             return False, {}
 
         try:
@@ -164,8 +157,10 @@ class TrafficDataFetcher:
 
     @classmethod
     def get_traffic_data(cls, road_name: str = "Main Road") -> Dict[str, Any]:
-        """Fetch, validate, and return structured traffic data for specified road."""
-        logger.info(f"[TRAFFIC] Fetching traffic data...")
+        """Fetch, validate, and return structured traffic data with explicit logging."""
+        now_str = datetime.now().strftime("%H:%M:%S")
+        logger.info("[TRAFFIC] Fetch started")
+        logger.info(f"[TRAFFIC] Fetch time: {now_str}")
         logger.info(f"[TRAFFIC] Road: {road_name}")
 
         coords = ROAD_COORDINATES.get(road_name, ROAD_COORDINATES["Main Road"])
@@ -179,7 +174,7 @@ class TrafficDataFetcher:
             destination=f"{lat + 0.01},{lng + 0.01}"
         )
 
-        # Telemetry simulator fallback for vehicle count & camera sensors
+        # Telemetry simulator for vehicle count & sensor data
         sim_data = TrafficSimulator.generate_random_telemetry(road=road_name)
 
         if gmaps_success:
@@ -188,11 +183,13 @@ class TrafficDataFetcher:
             normal_travel_time = gmaps_data.get("normal_travel_time", 10)
             delay = gmaps_data.get("delay", 5)
             congestion_level = max(0, min(100, int((delay / max(1, normal_travel_time)) * 100)))
+            data_mode = "REAL-TIME GOOGLE MAPS API + CCTV SENSORS"
         else:
             travel_time = int(round((sim_data.get("vehicle_count", 50) / 120.0) * 20)) + 5
             normal_travel_time = 8
             delay = max(0, travel_time - normal_travel_time)
             congestion_level = int(round(sim_data.get("road_occupancy_pct", 40.0)))
+            data_mode = sim_data.get("data_mode", "SIMULATED DATA (Time-Aware Sensor Model)")
 
         density_str = sim_data.get("density", "MEDIUM").upper()
         if density_str not in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
@@ -221,7 +218,9 @@ class TrafficDataFetcher:
             "emergency_vehicle_status": sim_data.get("emergency_vehicle", False),
             "road_status": "CLOSED" if sim_data.get("accident") else "OPEN",
             "weather": str(sim_data.get("weather", "CLEAR")).upper(),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "time_display": now_str,
+            "data_mode": data_mode
         }
 
         # Validate and sanitize data
@@ -231,7 +230,9 @@ class TrafficDataFetcher:
         logger.info(f"[TRAFFIC] Average Speed: {validated.get('average_speed')} km/h")
         logger.info(f"[TRAFFIC] Density: {validated.get('traffic_density')}")
         logger.info(f"[TRAFFIC] Congestion: {validated.get('congestion_level')}%")
-        logger.info("[TRAFFIC] Data successfully passed to Traffic Monitoring Agent.")
+        logger.info(f"[TRAFFIC] Delay: {validated.get('delay')} minutes")
+        logger.info(f"[TRAFFIC] Data timestamp: {validated.get('time_display')}")
+        logger.info("[TRAFFIC] Sending latest data to CrewAI Agent")
 
         return validated
 
@@ -239,13 +240,7 @@ class TrafficDataFetcher:
 @tool
 def fetch_traffic_data(road_name: str) -> str:
     """
-    CrewAI Tool to fetch real-time structured traffic telemetry for a specified road or junction.
-    
-    Args:
-        road_name: The target road or junction name (e.g. 'Main Road', 'Express Highway').
-        
-    Returns:
-        JSON formatted string containing structured traffic data.
+    CrewAI Tool to fetch real-time structured traffic telemetry for a specified road.
     """
     data = TrafficDataFetcher.get_traffic_data(road_name)
     return json.dumps(data, indent=2)
@@ -254,7 +249,7 @@ def fetch_traffic_data(road_name: str) -> str:
 def get_data_lineage(road_name: str = "Main Road", agent_output: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Returns developer debug dictionary showing data flow across all 5 lineage stages."""
     api_key_present = bool(os.getenv("GOOGLE_MAPS_API_KEY") and os.getenv("GOOGLE_MAPS_API_KEY").strip() != "your_google_maps_api_key_here")
-    source_name = "Google Maps API + CCTV Sensors" if api_key_present else "Live Weather & Sensor Engine (Fallback)"
+    source_name = "Google Maps API + CCTV Sensors" if api_key_present else "SIMULATED DATA (Time-Aware Sensor Model)"
     
     data_struct = TrafficDataFetcher.get_traffic_data(road_name)
 
@@ -294,6 +289,7 @@ def get_data_lineage(road_name: str = "Main Road", agent_output: Optional[Dict[s
             "road_status": data_struct.get("road_status"),
             "weather": data_struct.get("weather"),
             "timestamp": data_struct.get("timestamp"),
+            "time_display": data_struct.get("time_display"),
             "risk_level": "HIGH" if data_struct.get("congestion_level", 0) > 70 else "MEDIUM"
         }
 
@@ -302,7 +298,8 @@ def get_data_lineage(road_name: str = "Main Road", agent_output: Optional[Dict[s
             "provider": source_name,
             "google_maps_key_active": api_key_present,
             "target_road": road_name,
-            "status": "FETCH_SUCCESS"
+            "status": "FETCH_SUCCESS",
+            "fetch_time": data_struct.get("time_display")
         },
         "raw_response": {
             "coordinates": {"lat": data_struct.get("latitude"), "lng": data_struct.get("longitude")},

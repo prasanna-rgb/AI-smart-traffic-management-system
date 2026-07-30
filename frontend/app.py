@@ -483,17 +483,30 @@ st.sidebar.markdown("""
 - 🟢 **Analytics Agent**: Active
 """)
 
-# Fetch latest reports & telemetry
-reports = get_latest_reports(limit=20)
-filtered_reports = [r for r in reports if isinstance(r, dict) and r.get("road_name") == selected_road]
+# Handle session state for previous vs current telemetry state comparison
+session_key = f"traffic_state_{selected_road}"
+prev_state = st.session_state.get(session_key)
 
-full_report = {}
-if filtered_reports:
-    full_report = filtered_reports[0].get("full_report") or {}
+# ALWAYS fetch fresh traffic data for selected road on page refresh or interaction
+current_telemetry = TrafficDataFetcher.get_traffic_data(selected_road)
 
-if not full_report or not isinstance(full_report, dict) or not full_report.get("traffic_report"):
-    sim_data = TrafficSimulator.generate_random_telemetry(road=selected_road)
-    full_report = run_traffic_crew(sim_data, registered_phone=reg_phone)
+# Compute deltas for previous vs current tracking
+if prev_state:
+    delta_vc = current_telemetry.get("vehicle_count", 0) - prev_state.get("vehicle_count", 0)
+    delta_spd = round(current_telemetry.get("average_speed", 0.0) - prev_state.get("average_speed", 0.0), 1)
+    delta_cg = current_telemetry.get("congestion_level", 0) - prev_state.get("congestion_level", 0)
+    data_changed = delta_vc != 0 or delta_spd != 0.0 or delta_cg != 0
+else:
+    delta_vc = 0
+    delta_spd = 0.0
+    delta_cg = 0
+    data_changed = True
+
+# Execute CrewAI Multi-Agent Pipeline with latest fresh data
+full_report = run_traffic_crew(current_telemetry, registered_phone=reg_phone)
+
+# Save current telemetry in session state for next cycle comparison
+st.session_state[session_key] = current_telemetry
 
 t_rep = full_report.get("traffic_report") or {}
 d_safe = full_report.get("driver_safety") or {}
@@ -504,11 +517,36 @@ c_alt = full_report.get("citizen_alerts") or {}
 a_sum = full_report.get("analytics_summary") or {}
 
 # Extract guaranteed non-null metric values
-vehicles_val = t_rep.get("vehicles") if t_rep.get("vehicles") is not None else (t_rep.get("vehicle_count") if t_rep.get("vehicle_count") is not None else 50)
-density_val = t_rep.get("density") or "Medium"
-speed_val = t_rep.get("average_speed") if t_rep.get("average_speed") is not None else 40.0
-c_score_val = c_pred.get("congestion_score") if c_pred.get("congestion_score") is not None else 40.0
+vehicles_val = current_telemetry.get("vehicle_count", 50)
+density_val = current_telemetry.get("traffic_density", "MEDIUM").title()
+speed_val = current_telemetry.get("average_speed", 40.0)
+c_score_val = current_telemetry.get("congestion_level", 40)
 g_time_val = s_opt.get("recommended_green_time_sec") if s_opt.get("recommended_green_time_sec") is not None else 30
+
+# Render Previous vs Current Telemetry Comparison Badge
+vc_str = f"+{delta_vc}" if delta_vc > 0 else (f"{delta_vc}" if delta_vc < 0 else "0")
+spd_str = f"+{delta_spd}" if delta_spd > 0 else (f"{delta_spd}" if delta_spd < 0 else "0")
+cg_str = f"+{delta_cg}%" if delta_cg > 0 else (f"{delta_cg}%" if delta_cg < 0 else "0%")
+
+st.markdown(
+    f"""
+    <div style="background-color: #0F172A; border: 1px solid #334155; border-radius: 12px; padding: 1rem 1.4rem; margin-bottom: 1.2rem; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <span style="background-color: #0284C7; color: white; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.78rem;">📡 {current_telemetry.get('data_mode', 'LIVE TELEMETRY')}</span>
+                <span style="color: #94A3B8; font-weight: 600; font-size: 0.85rem; margin-left: 10px;">⏱️ Last Updated: <b style="color: #38BDF8;">{current_telemetry.get('time_display', 'Just now')}</b></span>
+            </div>
+            <div style="display: flex; gap: 18px; font-size: 0.88rem; font-weight: 600; color: #E2E8F0;">
+                <div>🚗 Vehicle Delta: <b style="color: {'#34D399' if delta_vc <= 0 else '#F87171'};">{vc_str}</b></div>
+                <div>⚡ Velocity Delta: <b style="color: {'#34D399' if delta_spd >= 0 else '#F87171'};">{spd_str} km/h</b></div>
+                <div>📈 Congestion Delta: <b style="color: {'#34D399' if delta_cg <= 0 else '#F87171'};">{cg_str}</b></div>
+            </div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 
 # Emergency Alert Banners & Audio Announcements
 if e_corr.get("green_corridor_active"):
@@ -1276,5 +1314,28 @@ with tab_debug:
 
     st.markdown("#### 5. 📄 TRAFFIC MONITORING AGENT OUTPUT (JSON Report)")
     st.json(lineage.get("agent_output"))
+
+    st.markdown("---")
+    st.markdown("### 📊 TRAFFIC DATA DEBUG (State Change Verification)")
+    p_vc = prev_state.get("vehicle_count", "N/A") if prev_state else "N/A"
+    c_vc = current_telemetry.get("vehicle_count", "N/A")
+    p_spd = prev_state.get("average_speed", "N/A") if prev_state else "N/A"
+    c_spd = current_telemetry.get("average_speed", "N/A")
+    p_cg = prev_state.get("congestion_level", "N/A") if prev_state else "N/A"
+    c_cg = current_telemetry.get("congestion_level", "N/A")
+
+    st.markdown(f"""
+    - **Data Source**: `{current_telemetry.get('data_mode', 'Sensor Engine')}`
+    - **Last Fetch Time**: `{current_telemetry.get('time_display', 'HH:MM:SS')}`
+    - **Previous Vehicle Count**: `{p_vc}`
+    - **Current Vehicle Count**: `{c_vc}`
+    - **Previous Average Speed**: `{p_spd} km/h`
+    - **Current Average Speed**: `{c_spd} km/h`
+    - **Previous Congestion**: `{p_cg}%`
+    - **Current Congestion**: `{c_cg}%`
+    - **Data Changed**: `{"YES" if data_changed else "NO"}`
+    - **Agent Updated**: `YES`
+    """)
+
 
 

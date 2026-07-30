@@ -1,60 +1,106 @@
+"""
+Traffic Telemetry Simulation Tools (Backend Package).
+Simulates realistic, time-of-day aware CCTV / IoT sensor telemetry with continuous dynamic variations.
+"""
 import random
+from datetime import datetime
 from typing import Dict, Any
-from tools.live_traffic_api import fetch_live_traffic_telemetry
 
 ROADS = ["Main Road", "Broadway Ave", "Express Highway", "Downtown Ring", "Harbor View Park"]
 WEATHER_OPTIONS = ["Clear", "Clear", "Rain", "Fog", "Storm"]
 EMERGENCY_TYPES = ["Ambulance", "Fire Truck", "Police Vehicle"]
 
+# Global in-memory cache for stateful gradual transitions between fetch cycles
+_PREVIOUS_ROAD_STATES: Dict[str, Dict[str, Any]] = {}
+
 
 class TrafficSimulator:
-    """Class responsible for fetching live real-time traffic telemetry from Live APIs."""
+    """Class responsible for generating synthetic real-time traffic telemetry with state continuity."""
 
     @staticmethod
     def generate_random_telemetry(road: str = None) -> Dict[str, Any]:
-        """Fetch live real-time weather and traffic telemetry from Open-Meteo & Live APIs."""
+        """Generate time-aware dynamic real-time traffic data."""
         target_road = road if road else random.choice(ROADS)
-        return fetch_live_traffic_telemetry(target_road)
-        scenario_roll = random.random()
-        
-        if scenario_roll < 0.15:
-            vehicle_count = random.randint(70, 110)
-            avg_speed = random.randint(15, 30)
-            occupancy = round(random.uniform(75.0, 95.0), 1)
-            accident = False
-            emergency_vehicle = True
-            emergency_type = random.choice(EMERGENCY_TYPES)
-        elif scenario_roll < 0.30:
-            vehicle_count = random.randint(80, 120)
-            avg_speed = random.randint(10, 20)
-            occupancy = round(random.uniform(85.0, 98.0), 1)
+        now = datetime.now()
+        hour = now.hour
+
+        # Determine base time-of-day profile
+        if 7 <= hour <= 9:  # Morning Peak
+            base_vc = random.randint(140, 185)
+            base_speed = random.uniform(18.0, 28.0)
+            base_occupancy = random.uniform(75.0, 92.0)
+            density_desc = "HIGH"
+        elif 17 <= hour <= 20:  # Evening Peak
+            base_vc = random.randint(160, 215)
+            base_speed = random.uniform(14.0, 24.0)
+            base_occupancy = random.uniform(82.0, 96.0)
+            density_desc = "CRITICAL"
+        elif 10 <= hour <= 16:  # Mid-day Normal
+            base_vc = random.randint(65, 115)
+            base_speed = random.uniform(35.0, 52.0)
+            base_occupancy = random.uniform(42.0, 68.0)
+            density_desc = "MEDIUM"
+        else:  # Night Light Traffic
+            base_vc = random.randint(20, 55)
+            base_speed = random.uniform(50.0, 68.0)
+            base_occupancy = random.uniform(15.0, 38.0)
+            density_desc = "LOW"
+
+        # Apply stateful smooth variation relative to previous fetch cycle if available
+        prev_state = _PREVIOUS_ROAD_STATES.get(target_road)
+        if prev_state:
+            # Smooth transition: ±5-15 vehicles, ±2-5 km/h
+            vc_delta = random.randint(-12, 16)
+            vehicle_count = max(10, prev_state.get("vehicle_count", base_vc) + vc_delta)
+
+            speed_delta = round(random.uniform(-3.5, 3.5), 1)
+            avg_speed = max(10.0, round(prev_state.get("average_speed", base_speed) + speed_delta, 1))
+
+            occ_delta = round(random.uniform(-4.0, 4.0), 1)
+            occupancy = max(10.0, min(99.0, round(prev_state.get("road_occupancy_pct", base_occupancy) + occ_delta, 1)))
+        else:
+            vehicle_count = base_vc
+            avg_speed = round(base_speed, 1)
+            occupancy = round(base_occupancy, 1)
+
+        # Dynamic events (Accident 10%, Emergency 10%)
+        event_roll = random.random()
+        if event_roll < 0.10:
             accident = True
             emergency_vehicle = random.choice([True, False])
             emergency_type = "Ambulance" if emergency_vehicle else None
-        elif scenario_roll < 0.65:
-            vehicle_count = random.randint(65, 95)
-            avg_speed = random.randint(25, 40)
-            occupancy = round(random.uniform(60.0, 80.0), 1)
+            vehicle_count += random.randint(15, 35)
+            avg_speed = max(8.0, avg_speed - 12.0)
+            occupancy = min(98.0, occupancy + 15.0)
+            density_desc = "CRITICAL"
+        elif event_roll < 0.20:
             accident = False
-            emergency_vehicle = False
-            emergency_type = None
+            emergency_vehicle = True
+            emergency_type = random.choice(EMERGENCY_TYPES)
         else:
-            vehicle_count = random.randint(20, 55)
-            avg_speed = random.randint(45, 65)
-            occupancy = round(random.uniform(25.0, 55.0), 1)
             accident = False
             emergency_vehicle = False
             emergency_type = None
 
         weather = random.choice(WEATHER_OPTIONS)
+        timestamp_str = datetime.utcnow().isoformat()
+        time_display = now.strftime("%H:%M:%S")
 
-        return {
+        result = {
             "road": target_road,
             "vehicle_count": vehicle_count,
             "average_speed": avg_speed,
             "road_occupancy_pct": occupancy,
+            "density": density_desc,
             "accident": accident,
             "emergency_vehicle": emergency_vehicle,
             "emergency_type": emergency_type,
-            "weather": weather
+            "weather": weather,
+            "timestamp": timestamp_str,
+            "time_display": time_display,
+            "data_mode": "SIMULATED DATA (Time-Aware Sensor Model)"
         }
+
+        # Cache state for next fetch cycle transition
+        _PREVIOUS_ROAD_STATES[target_road] = result
+        return result
