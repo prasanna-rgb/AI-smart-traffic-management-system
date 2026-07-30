@@ -11,7 +11,12 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from config.settings import DATABASE_URL
-from database.models import Base, TrafficDataDB, TrafficReportDB, AlertDB, AnalyticsDB, DriverSafetyLogDB, EmergencyEventDB, ScenarioSimulationDB, EmergencyResourceAllocationDB
+from database.models import (
+    Base, TrafficDataDB, TrafficReportDB, AlertDB, AnalyticsDB, 
+    DriverSafetyLogDB, EmergencyEventDB, ScenarioSimulationDB, 
+    EmergencyResourceAllocationDB, FloodMonitoringDB
+)
+
 
 def save_emergency_allocation(data: dict) -> Optional[EmergencyResourceAllocationDB]:
     """Persist emergency resource allocation to database."""
@@ -320,3 +325,47 @@ def get_driver_safety_logs(limit: int = 20):
     with get_db() as db:
         records = db.query(DriverSafetyLogDB).order_by(DriverSafetyLogDB.timestamp.desc()).limit(limit).all()
         return [r.to_dict() for r in records]
+
+
+def save_flood_monitoring_log(data: dict) -> Optional[FloodMonitoringDB]:
+    """Persist flood and waterlogging monitoring report to database."""
+    try:
+        with get_db() as db:
+            loc = data.get("location", {})
+            record = FloodMonitoringDB(
+                timestamp=datetime.utcnow(),
+                record_id=data.get("record_id", f"FLD-{uuid.uuid4().hex[:6].upper()}"),
+                road_id=data.get("road_id", "R101"),
+                road_name=data.get("road_name", data.get("road", "Main Road")),
+                latitude=float(loc.get("latitude", 13.0827)),
+                longitude=float(loc.get("longitude", 80.2707)),
+                rainfall_mm_per_hour=float(data.get("rainfall_mm_per_hour", 0.0)),
+                flood_risk_score=int(data.get("flood_risk_score", 0)),
+                risk_level=str(data.get("risk_level", "LOW")),
+                traffic_density=str(data.get("traffic_density", "MEDIUM")),
+                water_level=str(data.get("water_level", "UNAVAILABLE")),
+                predicted_waterlogging=bool(data.get("predicted_waterlogging", False)),
+                estimated_time_to_waterlogging=str(data.get("estimated_time_to_waterlogging", "None")),
+                recommended_action=str(data.get("recommended_action", "Normal operations")),
+                alternate_route=data.get("alternate_route"),
+                details_json=json.dumps(data.get("details", data))
+            )
+            db.add(record)
+            db.flush()
+            db.refresh(record)
+            return record
+    except Exception as err:
+        logger.warning(f"Failed to persist flood monitoring log: {err}")
+        return None
+
+
+def get_recent_flood_logs(limit: int = 20) -> List[dict]:
+    """Retrieve recent flood monitoring logs."""
+    try:
+        with get_db() as db:
+            records = db.query(FloodMonitoringDB).order_by(FloodMonitoringDB.timestamp.desc()).limit(limit).all()
+            return [r.to_dict() for r in records]
+    except Exception as err:
+        logger.warning(f"Failed to fetch flood logs: {err}")
+        return []
+

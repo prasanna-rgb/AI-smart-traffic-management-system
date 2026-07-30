@@ -45,7 +45,7 @@ class TrafficReportDB(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
     road_name = Column(String(100), nullable=False, index=True)
-    density = Column(String(50), nullable=False) # Low, Medium, High, Critical
+    density = Column(String(50), nullable=False)
     congestion_score = Column(Float, default=0.0)
     signal_mode = Column(String(50), default="Standard")
     green_corridor_active = Column(Boolean, default=False)
@@ -78,8 +78,8 @@ class AlertDB(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
-    alert_type = Column(String(50), nullable=False) # CITIZEN, EMERGENCY, TRAFFIC
-    severity = Column(String(20), nullable=False) # INFO, WARNING, CRITICAL, EMERGENCY
+    alert_type = Column(String(50), nullable=False)
+    severity = Column(String(20), nullable=False)
     title = Column(String(200), nullable=False)
     message = Column(Text, nullable=False)
     road_name = Column(String(100), nullable=False)
@@ -137,7 +137,7 @@ class DriverSafetyLogDB(Base):
     latitude = Column(Float, default=13.0827)
     longitude = Column(Float, default=80.2707)
     safety_score = Column(Integer, nullable=False)
-    risk_level = Column(String(50), nullable=False) # LOW, MEDIUM, HIGH, CRITICAL
+    risk_level = Column(String(50), nullable=False)
     total_violations = Column(Integer, default=0)
     violations_json = Column(Text, nullable=False)
     primary_hazard = Column(String(250), nullable=True)
@@ -286,5 +286,51 @@ class EmergencyResourceAllocationDB(Base):
             "recommended_route": self.route,
             "green_corridor_status": self.green_corridor_status,
             "allocation_status": self.allocation_status,
+            "details": json.loads(self.details_json) if self.details_json else {}
+        }
+
+
+class FloodMonitoringDB(Base):
+    """Flood Monitoring and Waterlogging Risk Table."""
+    __tablename__ = "flood_monitoring_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    record_id = Column(String(100), nullable=False, index=True)
+    road_id = Column(String(100), nullable=False, index=True)
+    road_name = Column(String(100), nullable=False, index=True)
+    latitude = Column(Float, default=13.0827)
+    longitude = Column(Float, default=80.2707)
+    rainfall_mm_per_hour = Column(Float, nullable=False)
+    flood_risk_score = Column(Integer, nullable=False)
+    risk_level = Column(String(50), nullable=False) # LOW, MODERATE, HIGH, VERY HIGH, CRITICAL
+    traffic_density = Column(String(50), default="MEDIUM")
+    water_level = Column(String(50), default="UNAVAILABLE")
+    predicted_waterlogging = Column(Boolean, default=False)
+    estimated_time_to_waterlogging = Column(String(50), default="None")
+    recommended_action = Column(Text, nullable=False)
+    alternate_route = Column(String(200), nullable=True)
+    details_json = Column(Text, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "record_id": self.record_id,
+            "road_id": self.road_id,
+            "road_name": self.road_name,
+            "location": {
+                "latitude": self.latitude,
+                "longitude": self.longitude
+            },
+            "rainfall_mm_per_hour": self.rainfall_mm_per_hour,
+            "flood_risk_score": self.flood_risk_score,
+            "risk_level": self.risk_level,
+            "traffic_density": self.traffic_density,
+            "water_level": self.water_level,
+            "predicted_waterlogging": self.predicted_waterlogging,
+            "estimated_time_to_waterlogging": self.estimated_time_to_waterlogging,
+            "recommended_action": self.recommended_action,
+            "alternate_route": self.alternate_route,
             "details": json.loads(self.details_json) if self.details_json else {}
         }

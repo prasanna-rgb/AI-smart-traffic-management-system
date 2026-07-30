@@ -99,7 +99,25 @@ def create_traffic_tasks(agents_dict: dict, telemetry_input: dict) -> list:
         )
         tasks_list.append(task_driver_safety)
 
+    # Task 2.5: Flood & Waterlogging Traffic Intelligence
+    if "flood" in agents_dict or "flood_traffic" in agents_dict:
+        task_flood = Task(
+            description=(
+                f"Evaluate rainfall, road elevation, historical flood frequency, and traffic telemetry for {road_name}.\n\n{input_prompt}\n\n"
+                f"Calculate multi-attribute Flood Risk Score (0-100), classify Road Safety Status (SAFE, MONITOR, HIGH RISK, VERY HIGH RISK, FLOODED), "
+                f"predict early waterlogging probability and expected time, and recommend detour routes and signal modifications."
+            ),
+            expected_output=(
+                "JSON object with record_id, road_id, road_name, location, rainfall_mm_per_hour, "
+                "flood_risk_score, risk_level, road_status, predicted_waterlogging, estimated_time_to_waterlogging, "
+                "predicted_congestion_pct, recommended_action, alternate_route, early_warning_timeline, and decision_factors."
+            ),
+            agent=agents_dict.get("flood", agents_dict.get("flood_traffic"))
+        )
+        tasks_list.append(task_flood)
+
     # Task 3: Congestion Prediction
+
     if "congestion" in agents_dict or "prediction" in agents_dict:
         task_congestion = Task(
             description="Read Traffic Report from Task 1. Calculate congestion score (0-100), predict 30-min traffic trend, and recommend alternate bypass roads.",

@@ -1,6 +1,5 @@
 """
 CrewAI Task definitions for Smart Traffic Agents (Backend Package).
-Configures structured task prompts, expected outputs, and data passing pipelines.
 """
 
 from typing import Dict, Any, List
@@ -30,7 +29,6 @@ def create_traffic_tasks(agents_dict: dict, telemetry_input: dict) -> list:
 
     traffic_struct = TrafficDataFetcher.get_traffic_data(road_name)
 
-    # Override with explicitly injected custom telemetry parameters if provided
     for k, v in telemetry_input.items():
         if k in ["vehicle_count", "vehicles", "average_speed", "accident", "emergency_vehicle", "weather"]:
             if k == "vehicles":
@@ -42,7 +40,6 @@ def create_traffic_tasks(agents_dict: dict, telemetry_input: dict) -> list:
             else:
                 traffic_struct[k] = v
 
-    # Formulate complete structured prompt
     input_prompt = (
         f"TRAFFIC DATA:\n"
         f"Road ID: {traffic_struct.get('road_id')}\n"
@@ -98,6 +95,23 @@ def create_traffic_tasks(agents_dict: dict, telemetry_input: dict) -> list:
             agent=agents_dict["driver_safety"]
         )
         tasks_list.append(task_driver_safety)
+
+    # Task 2.5: Flood & Waterlogging Traffic Intelligence
+    if "flood" in agents_dict or "flood_traffic" in agents_dict:
+        task_flood = Task(
+            description=(
+                f"Evaluate rainfall, road elevation, historical flood frequency, and traffic telemetry for {road_name}.\n\n{input_prompt}\n\n"
+                f"Calculate multi-attribute Flood Risk Score (0-100), classify Road Safety Status (SAFE, MONITOR, HIGH RISK, VERY HIGH RISK, FLOODED), "
+                f"predict early waterlogging probability and expected time, and recommend detour routes and signal modifications."
+            ),
+            expected_output=(
+                "JSON object with record_id, road_id, road_name, location, rainfall_mm_per_hour, "
+                "flood_risk_score, risk_level, road_status, predicted_waterlogging, estimated_time_to_waterlogging, "
+                "predicted_congestion_pct, recommended_action, alternate_route, early_warning_timeline, and decision_factors."
+            ),
+            agent=agents_dict.get("flood", agents_dict.get("flood_traffic"))
+        )
+        tasks_list.append(task_flood)
 
     # Task 3: Congestion Prediction
     if "congestion" in agents_dict or "prediction" in agents_dict:

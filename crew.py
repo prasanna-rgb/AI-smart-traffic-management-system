@@ -27,6 +27,7 @@ from agents.driver_safety_agent import create_driver_safety_agent, process_drive
 from agents.weather_agent import create_weather_agent, process_weather_rule_based
 from agents.scenario_simulation_agent import create_scenario_simulation_agent, process_scenario_simulation_rule_based
 from agents.emergency_resource_agent import create_emergency_resource_agent, process_emergency_resource_allocation_rule_based
+from agents.flood_traffic_agent import create_flood_traffic_agent, process_flood_traffic_rule_based
 from tools.audio_announcer import get_emergency_voice_script
 
 from database.db import (
@@ -36,8 +37,10 @@ from database.db import (
     save_analytics,
     save_driver_safety_log,
     save_emergency_event,
-    save_scenario_simulation
+    save_scenario_simulation,
+    save_flood_monitoring_log
 )
+
 
 
 logger = logging.getLogger("smart_traffic_ai.crew")
@@ -160,9 +163,16 @@ class SmartTrafficCrew:
 
         # 1. Traffic Monitoring Agent
         traffic_report = process_traffic_monitor_rule_based(telemetry)
-        
-        # 2. Driver Behavior & Safety Analytics Agent
+              # 2. Driver Behavior & Safety Analytics Agent
         driver_safety = process_driver_safety_rule_based(telemetry)
+
+        # 2.5 Flood & Waterlogging Traffic Agent
+        flood_traffic = process_flood_traffic_rule_based(telemetry)
+        if flood_traffic:
+            try:
+                save_flood_monitoring_log(flood_traffic)
+            except Exception as fl_err:
+                logger.warning(f"Failed to persist flood monitoring log: {fl_err}")
 
         # 3. Congestion Prediction Agent
         congestion_prediction = process_congestion_rule_based(traffic_report)
@@ -212,6 +222,11 @@ class SmartTrafficCrew:
             signal_optimization["recommended_green_time_sec"] += weather_adaptation["weather_green_extension_sec"]
             signal_optimization["signal_mode"] += f"-WeatherAdapt({traffic_report.get('weather')})"
         
+        # Adjust signal timing for Flood & Waterlogging Risk
+        if flood_traffic.get("flood_risk_score", 0) >= 60:
+            signal_optimization["signal_mode"] += f"-FloodDiverted({flood_traffic.get('risk_level')})"
+            signal_optimization["recommended_green_time_sec"] = max(15, signal_optimization["recommended_green_time_sec"] - 10)
+
         if is_recovery:
             signal_optimization["recommended_green_time_sec"] = 30
             signal_optimization["recommended_yellow_time_sec"] = 5
@@ -225,6 +240,12 @@ class SmartTrafficCrew:
 
         # 7. Citizen Communication Agent
         citizen_alerts = process_citizen_rule_based(traffic_report, congestion_prediction, emergency_corridor)
+        if flood_traffic.get("flood_risk_score", 0) >= 60:
+            citizen_alerts["title"] = f"🌧️ FLOOD RISK WARNING - {telemetry.get('road', 'Main Road').upper()}"
+            citizen_alerts["severity"] = "WARNING" if flood_traffic.get("flood_risk_score") < 80 else "CRITICAL"
+            citizen_alerts["message"] = f"Waterlogging risk is {flood_traffic.get('risk_level')}. Expected waterlogging within {flood_traffic.get('estimated_time_to_waterlogging')}. Please avoid this route."
+            citizen_alerts["alternate_route"] = flood_traffic.get("alternate_route")
+
         if is_recovery:
             citizen_alerts["title"] = f"✅ EMERGENCY RESOLVED - {telemetry.get('road', 'Main Road').upper()}"
             citizen_alerts["severity"] = "INFO"
@@ -249,6 +270,7 @@ class SmartTrafficCrew:
             "road_monitored": telemetry.get("road_name", telemetry.get("road", "Main Road")),
             "traffic_report": traffic_report,
             "driver_safety": driver_safety,
+            "flood_traffic": flood_traffic,
             "congestion_prediction": congestion_prediction,
             "scenario_simulation": scenario_simulation,
             "emergency_corridor": emergency_corridor,
@@ -265,15 +287,16 @@ class SmartTrafficCrew:
         agents = {
             "monitor": create_traffic_monitor_agent(),
             "driver_safety": create_driver_safety_agent(),
+            "flood": create_flood_traffic_agent(),
             "congestion": create_congestion_agent(),
             "scenario_simulation": create_scenario_simulation_agent(),
             "emergency_resource": create_emergency_resource_agent(),
             "emergency": create_emergency_agent(),
-
             "signal": create_signal_agent(),
             "citizen": create_citizen_agent(),
             "analytics": create_analytics_agent()
         }
+
 
 
         agents = {k: v for k, v in agents.items() if v is not None}

@@ -777,10 +777,11 @@ with col5:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # Main Navigation Tabs
-tab1, tab_scen, tab_alloc, tab_driver, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab_scen, tab_alloc, tab_flood, tab_driver, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Executive Operations & Agent Flow", 
     "🤖 AI Scenario Simulator",
     "🏥 Emergency Resource Allocation",
+    "🌊 Flood & Waterlogging Intelligence",
     "🛡️ Driver Safety Analytics",
     "🗺️ GIS Map & Google Satellite", 
     "🚦 Signal Controllers & Preemption", 
@@ -793,11 +794,12 @@ tab1, tab_scen, tab_alloc, tab_driver, tab_gis, tab2, tab3, tab4, tab5 = st.tabs
 v2i = full_report.get("v2i_precrash", {})
 sc_sim = full_report.get("scenario_simulation", {})
 em_res = full_report.get("emergency_resource", {})
+fl_trf = full_report.get("flood_traffic", {})
 
 
 with tab1:
     st.markdown("#### 🤖 CrewAI Multi-Agent Execution Trace")
-    st.caption("Real-time decision pipeline across 9 specialized autonomous agents")
+    st.caption("Real-time decision pipeline across 10 specialized autonomous agents")
 
     ag1, ag2 = st.columns(2)
     with ag1:
@@ -830,6 +832,19 @@ with tab1:
         st.markdown(
             f"""
             <div class='agent-row-card'>
+                <div class='agent-title-text' style='color: #0284C7;'>3. Flood & Waterlogging Agent</div>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Flood Risk Score:</b> <b style='color: {'#34D399' if fl_trf.get('flood_risk_score', 0) < 40 else ('#FBBF24' if fl_trf.get('flood_risk_score', 0) < 70 else '#F87171')};'>{fl_trf.get('flood_risk_score', 15)} / 100</b></p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Road Safety Status:</b> <b style='color: #0EA5E9;'>{fl_trf.get('road_status', 'SAFE')}</b></p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Rainfall:</b> {fl_trf.get('rainfall_mm_per_hour', 0.0)} mm/hr</p>
+                <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>ETA Waterlogging:</b> {fl_trf.get('estimated_time_to_waterlogging', 'None')}</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            f"""
+            <div class='agent-row-card'>
                 <div class='agent-title-text' style='color: #0284C7;'>4. Emergency Resource Allocation Agent</div>
                 <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Selected Ambulance:</b> <b style='color: #38BDF8;'>{em_res.get('selected_ambulance', {}).get('ambulance_id', 'AMB001')}</b> ({em_res.get('selected_ambulance', {}).get('response_time_minutes', 6)} min ETA)</p>
                 <p style='margin:4px 0; font-size: 0.88rem; color: #334155;'><b>Selected Hospital:</b> <b style='color: #34D399;'>{em_res.get('selected_hospital', {}).get('hospital_name', 'City Emergency Hospital')}</b></p>
@@ -839,6 +854,7 @@ with tab1:
             """,
             unsafe_allow_html=True
         )
+
 
         st.markdown(
             f"""
@@ -1256,7 +1272,165 @@ with tab_alloc:
     st.markdown("<br>", unsafe_allow_html=True)
     st.caption("ℹ️ *Disclaimer: Recommended Emergency Resource Allocation - Final dispatch and hospital decisions remain with authorized emergency personnel.*")
 
+with tab_flood:
+    st.markdown("#### 🌊 Flood & Waterlogging Traffic Intelligence Agent")
+    st.caption("Detects, predicts, and monitors road flooding and waterlogging risks before severe traffic congestion or accidents occur by combining rainfall, elevation, historical flood frequency, and traffic speed data.")
+
+    fl_data = full_report.get("flood_traffic") or {}
+    fl_score = fl_data.get("flood_risk_score", 15)
+    fl_level = fl_data.get("risk_level", "LOW")
+    fl_status = fl_data.get("road_status", "SAFE")
+    fl_rain = fl_data.get("rainfall_mm_per_hour", 0.0)
+    fl_eta = fl_data.get("estimated_time_to_waterlogging", "None")
+    fl_act = fl_data.get("recommended_action", "Road is safe. Continue standard traffic operations.")
+    fl_alt = fl_data.get("alternate_route", "Ring Road Bypass")
+    fl_elev = fl_data.get("road_elevation_meters", 5.2)
+
+    # 1. 🌊 FLOOD RISK OVERVIEW BANNER
+    banner_color = "#10B981" if fl_score <= 20 else ("#3B82F6" if fl_score <= 40 else ("#F59E0B" if fl_score <= 60 else "#EF4444"))
+    st.markdown(
+        f"""
+        <div style="background: linear-gradient(135deg, #0F172A 0%, #0369A1 100%); border: 2px solid {banner_color}; border-radius: 12px; padding: 1.4rem; margin-bottom: 1.4rem; color: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 10px;">
+                <div>
+                    <span style="background: {banner_color}; color: white; padding: 4px 12px; border-radius: 6px; font-weight: 800; font-size: 0.82rem;">🌊 FLOOD RISK STATUS: {fl_level} ({fl_status})</span>
+                    <h3 style="margin: 8px 0 2px 0; color: #38BDF8; font-size: 1.25rem;">Target Road: {selected_road}</h3>
+                </div>
+                <div style="text-align: right; background: #0C4A6E; padding: 8px 16px; border-radius: 8px; border: 1px solid #38BDF8;">
+                    <div style="font-size: 0.75rem; color: #BAE6FD; font-weight: 600;">FLOOD RISK SCORE</div>
+                    <div style="font-size: 1.6rem; font-weight: 900; color: {banner_color};">{fl_score}<span style="font-size: 0.9rem; color: #94A3B8;">/100</span></div>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; font-size: 0.85rem; margin-top: 12px;">
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>Rainfall Rate:</b> <b style="color: #38BDF8;">{fl_rain} mm/hr</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>Road Elevation:</b> <b style="color: #FBBF24;">{fl_elev} meters</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>Estimated Waterlogging ETA:</b> <b style="color: #F87171;">{fl_eta}</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 8px;"><b>Recommended Detour:</b> <b style="color: #34D399;">{fl_alt}</b></div>
+            </div>
+            <div style="margin-top: 12px; font-size: 0.85rem; color: #CBD5E1; background: #0F172A; padding: 10px 14px; border-radius: 6px; border-left: 4px solid #38BDF8;">
+                <b>🧠 AI Flood Strategy:</b> {fl_act}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 2. LIVE METRICS & ROAD MAP MARKERS
+    fcol1, fcol2 = st.columns(2)
+    with fcol1:
+        st.markdown(
+            f"""
+            <div style="background: #0F172A; border: 1px solid #38BDF8; border-radius: 10px; padding: 1rem; color: white;">
+                <div style="font-weight: 700; color: #38BDF8; font-size: 0.98rem; margin-bottom: 8px;">🌧️ METEOROLOGICAL & ROAD HYDROLOGY HUD</div>
+                <div style="font-size: 0.88rem; line-height: 1.6;">
+                    <div><b>Rainfall Intensity:</b> <span style="color: #38BDF8; font-weight: 800;">{fl_rain} mm/hr</span></div>
+                    <div><b>Historical Flood Risk Zone:</b> {fl_data.get('historical_flood_risk', 'HIGH')}</div>
+                    <div><b>Drainage Capacity Status:</b> {fl_data.get('drainage_condition', 'POOR')}</div>
+                    <div><b>IoT Water Level Sensor:</b> <span style="color: #FBBF24; font-weight: 700;">{fl_data.get('water_level', 'UNAVAILABLE')}</span></div>
+                    <div><b>Current Traffic Speed:</b> {fl_data.get('vehicle_speed_kmh', 25.0)} km/h</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    with fcol2:
+        st.markdown(
+            f"""
+            <div style="background: #0F172A; border: 1px solid #34D399; border-radius: 10px; padding: 1rem; color: white;">
+                <div style="font-weight: 700; color: #34D399; font-size: 0.98rem; margin-bottom: 8px;">🗺️ GEOSPATIAL ROAD FLOOD CLASSIFICATION</div>
+                <div style="font-size: 0.88rem; line-height: 1.6;">
+                    <div><b>Main Road:</b> <span style="color: {'#EF4444' if fl_score > 60 else '#34D399'}; font-weight: 800;">{'HIGH RISK / FLOODED' if fl_score > 60 else 'SAFE / MONITOR'}</span></div>
+                    <div><b>Broadway Ave:</b> <span style="color: #FBBF24; font-weight: 700;">MONITOR (Elevation 8.1m)</span></div>
+                    <div><b>Express Highway:</b> <span style="color: #34D399; font-weight: 700;">SAFE (Elevated 14.5m)</span></div>
+                    <div><b>Harbor View Park:</b> <span style="color: #EF4444; font-weight: 700;">CRITICAL (Elevation 3.8m)</span></div>
+                    <div><b>Active Alternate Route:</b> <span style="color: #38BDF8; font-weight: 700;">{fl_alt}</span></div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # 3. EARLY WARNING PREDICTION TIMELINE
+    st.markdown("<br>##### ⏳ AI EARLY WARNING WATERLOGGING PREDICTION TIMELINE", unsafe_allow_html=True)
+    st.caption("Predicts surface water accumulation before road flooding occurs to execute preventive traffic signal diversions.")
+
+    tline = fl_data.get("early_warning_timeline", [])
+    if not tline:
+        tline = [
+            {"time": "NOW", "step": "Heavy Rainfall / Runoff Ingress", "status": f"Rainfall: {fl_rain} mm/hr"},
+            {"time": "10 MIN", "step": "Traffic Speed Sinks & Surface Pooling", "status": "Predicted Speed: 18.0 km/h"},
+            {"time": "20 MIN", "step": "Drainage Saturation & Waterlogging Surge", "status": f"Flood Risk: {fl_score}%"},
+            {"time": "35 MIN", "step": "Severe Waterlogging / Inundation", "status": f"Action: {fl_alt}"}
+        ]
+
+    st.markdown(
+        f"""
+        <div style="background: #0F172A; border: 1px solid #334155; border-radius: 10px; padding: 1rem; color: white;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div style="background: #0369A1; color: #BAE6FD; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700;">
+                    {tline[0]['time']}<br><span style="font-size: 0.75rem; color: white;">{tline[0]['step']}</span>
+                </div>
+                <div style="font-size: 1.2rem; color: #38BDF8;">➔</div>
+                <div style="background: #1E293B; border: 1px solid #38BDF8; color: #38BDF8; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700;">
+                    {tline[1]['time']}<br><span style="font-size: 0.75rem; color: #93C5FD;">{tline[1]['step']}</span>
+                </div>
+                <div style="font-size: 1.2rem; color: #F59E0B;">➔</div>
+                <div style="background: #1E293B; border: 1px solid #F59E0B; color: #FBBF24; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700;">
+                    {tline[2]['time']}<br><span style="font-size: 0.75rem; color: #FDE68A;">{tline[2]['step']}</span>
+                </div>
+                <div style="font-size: 1.2rem; color: #EF4444;">➔</div>
+                <div style="background: #7F1D1D; color: #FCA5A5; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700;">
+                    {tline[3]['time']}<br><span style="font-size: 0.75rem; color: white;">{tline[3]['step']}</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 4. INTERACTIVE WEATHER & RAINFALL SIMULATOR SANDBOX
+    st.markdown("<br>##### 🧪 REAL-TIME RAINFALL & FLOOD RISK SIMULATOR SANDBOX", unsafe_allow_html=True)
+    st.caption("Adjust live weather parameters to observe instant AI risk scoring and preventive traffic signal adjustments.")
+
+    scol1, scol2, scol3 = st.columns(3)
+    with scol1:
+        sb_rain = st.slider("Rainfall Intensity (mm/hr)", 0.0, 120.0, float(fl_rain))
+    with scol2:
+        sb_elev = st.slider("Road Elevation (meters)", 2.0, 20.0, float(fl_elev))
+    with scol3:
+        sb_water_sensor = st.checkbox("Simulate IoT Water Depth Sensor", value=False)
+        sb_water_cm = st.slider("Sensor Water Depth (cm)", 0.0, 50.0, 25.0) if sb_water_sensor else None
+
+    from tools.flood_data_tools import FloodRiskCalculator
+    sb_fl_res = FloodRiskCalculator.calculate_risk(
+        road_name=selected_road,
+        rainfall_mm_per_hour=sb_rain,
+        vehicle_speed=max(10.0, 45.0 - (sb_rain * 0.3)),
+        sensor_water_level_cm=sb_water_cm,
+        override_elevation=sb_elev
+    )
+
+    st.markdown(
+        f"""
+        <div style="background: #0F172A; border: 2px dashed #38BDF8; border-radius: 10px; padding: 1.2rem; margin-top: 10px; color: white;">
+            <div style="font-weight: 700; color: #38BDF8; font-size: 1rem; margin-bottom: 8px;">🔮 LIVE SIMULATED FLOOD PREDICTION OUTCOME</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; font-size: 0.88rem;">
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Simulated Flood Risk:</b> <b style="color: {'#34D399' if sb_fl_res['flood_risk_score'] < 40 else ('#FBBF24' if sb_fl_res['flood_risk_score'] < 70 else '#F87171')};">{sb_fl_res['flood_risk_score']}/100</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Risk Level:</b> <b style="color: #38BDF8;">{sb_fl_res['risk_level']}</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Predicted Congestion:</b> <b style="color: #FBBF24;">{sb_fl_res['predicted_congestion_pct']}%</b></div>
+                <div style="background: #1E293B; padding: 10px; border-radius: 6px;"><b>Estimated Waterlogging:</b> <b style="color: #F87171;">{sb_fl_res['estimated_time_to_waterlogging']}</b></div>
+            </div>
+            <div style="margin-top: 8px; font-size: 0.82rem; color: #CBD5E1;"><b>AI Recommended Strategy:</b> {sb_fl_res['recommended_action']}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.caption("ℹ️ *Note: Flood predictions combine meteorological radar telemetry, road hydrology, and historical flood frequency.*")
+
 with tab_driver:
+
 
     st.markdown("#### 🛡️ Driver Behavior & Safety Intelligence Dashboard")
     st.caption("Continuously analyzes driver telemetry, computes Driver Safety Scores (0-100), detects 8 hazard violation categories, and predicts unsafe driving probability.")

@@ -11,48 +11,11 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from config.settings import DATABASE_URL
-from database.models import Base, TrafficDataDB, TrafficReportDB, AlertDB, AnalyticsDB, DriverSafetyLogDB, EmergencyEventDB, ScenarioSimulationDB, EmergencyResourceAllocationDB
-
-logger = logging.getLogger("smart_traffic_ai.database")
-
-try:
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-    )
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-except Exception:
-    SQLITE_FALLBACK = "sqlite:///smart_traffic.db"
-    engine = create_engine(SQLITE_FALLBACK, connect_args={"check_same_thread": False})
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-def init_db():
-    """Initialize database schema tables with automatic fallback."""
-    global engine, SessionLocal
-    try:
-        Base.metadata.create_all(bind=engine)
-    except Exception as e:
-        logger.warning(f"PostgreSQL connection fallback to SQLite: {e}")
-        SQLITE_FALLBACK = "sqlite:///smart_traffic.db"
-        engine = create_engine(SQLITE_FALLBACK, connect_args={"check_same_thread": False})
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        Base.metadata.create_all(bind=engine)
-
-
-
-@contextmanager
-def get_db():
-    """Provide a transactional scope around a series of database operations."""
-    db = SessionLocal()
-    try:
-        yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+from backend.database.models import (
+    Base, TrafficDataDB, TrafficReportDB, AlertDB, AnalyticsDB, 
+    DriverSafetyLogDB, EmergencyEventDB, ScenarioSimulationDB, 
+    EmergencyResourceAllocationDB, FloodMonitoringDB
+)
 
 
 def save_emergency_allocation(data: dict) -> Optional[EmergencyResourceAllocationDB]:
@@ -85,7 +48,6 @@ def save_emergency_allocation(data: dict) -> Optional[EmergencyResourceAllocatio
     except Exception as e:
         logger.error(f"Failed to save emergency allocation: {e}")
         return None
-
 
 def get_recent_emergency_allocations(limit: int = 10):
     """Retrieve recent emergency resource allocation logs."""
@@ -132,6 +94,47 @@ def get_recent_scenario_simulations(limit: int = 20):
             return [r.to_dict() for r in records]
     except Exception:
         return []
+
+
+logger = logging.getLogger("smart_traffic_ai.database")
+
+try:
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+    )
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+except Exception:
+    SQLITE_FALLBACK = "sqlite:///smart_traffic.db"
+    engine = create_engine(SQLITE_FALLBACK, connect_args={"check_same_thread": False})
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def init_db():
+    """Initialize database schema tables with automatic fallback."""
+    global engine, SessionLocal
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.warning(f"PostgreSQL connection fallback to SQLite: {e}")
+        SQLITE_FALLBACK = "sqlite:///smart_traffic.db"
+        engine = create_engine(SQLITE_FALLBACK, connect_args={"check_same_thread": False})
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        Base.metadata.create_all(bind=engine)
+
+
+@contextmanager
+def get_db():
+    """Provide a transactional scope around a series of database operations."""
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def save_traffic_input(data: dict) -> TrafficDataDB:
@@ -210,7 +213,7 @@ def save_analytics(road_name: str, vehicles: int, avg_speed: float, congestion_i
 
 
 def save_emergency_event(event_data: dict) -> Optional[EmergencyEventDB]:
-    """Persist emergency response event to database."""
+    """Persist emergency response event to database with auto-migration safety."""
     loc = event_data.get("location", {})
     evt_args = dict(
         timestamp=datetime.utcnow(),
@@ -238,7 +241,7 @@ def save_emergency_event(event_data: dict) -> Optional[EmergencyEventDB]:
             db.refresh(record)
             return record
     except Exception as e:
-        logger.warning(f"Legacy emergency_events schema mismatch: {e}. Recreating table.")
+        logger.warning(f"Legacy emergency_events schema mismatch: {e}. Dropping and recreating table.")
         try:
             with engine.begin() as conn:
                 conn.execute(text("DROP TABLE IF EXISTS emergency_events"))
@@ -293,7 +296,7 @@ def get_analytics_summary(limit: int = 50):
 
 
 def save_driver_safety_log(data: dict) -> DriverSafetyLogDB:
-    """Persist driver safety log."""
+    """Persist driver safety assessment and violations to database."""
     with get_db() as db:
         loc = data.get("location", {})
         record = DriverSafetyLogDB(
@@ -321,3 +324,46 @@ def get_driver_safety_logs(limit: int = 20):
     with get_db() as db:
         records = db.query(DriverSafetyLogDB).order_by(DriverSafetyLogDB.timestamp.desc()).limit(limit).all()
         return [r.to_dict() for r in records]
+
+
+def save_flood_monitoring_log(data: dict) -> Optional[FloodMonitoringDB]:
+    """Persist flood and waterlogging monitoring report to database."""
+    try:
+        with get_db() as db:
+            loc = data.get("location", {})
+            record = FloodMonitoringDB(
+                timestamp=datetime.utcnow(),
+                record_id=data.get("record_id", f"FLD-{uuid.uuid4().hex[:6].upper()}"),
+                road_id=data.get("road_id", "R101"),
+                road_name=data.get("road_name", data.get("road", "Main Road")),
+                latitude=float(loc.get("latitude", 13.0827)),
+                longitude=float(loc.get("longitude", 80.2707)),
+                rainfall_mm_per_hour=float(data.get("rainfall_mm_per_hour", 0.0)),
+                flood_risk_score=int(data.get("flood_risk_score", 0)),
+                risk_level=str(data.get("risk_level", "LOW")),
+                traffic_density=str(data.get("traffic_density", "MEDIUM")),
+                water_level=str(data.get("water_level", "UNAVAILABLE")),
+                predicted_waterlogging=bool(data.get("predicted_waterlogging", False)),
+                estimated_time_to_waterlogging=str(data.get("estimated_time_to_waterlogging", "None")),
+                recommended_action=str(data.get("recommended_action", "Normal operations")),
+                alternate_route=data.get("alternate_route"),
+                details_json=json.dumps(data.get("details", data))
+            )
+            db.add(record)
+            db.flush()
+            db.refresh(record)
+            return record
+    except Exception as err:
+        logger.warning(f"Failed to persist flood monitoring log: {err}")
+        return None
+
+
+def get_recent_flood_logs(limit: int = 20) -> List[dict]:
+    """Retrieve recent flood monitoring logs."""
+    try:
+        with get_db() as db:
+            records = db.query(FloodMonitoringDB).order_by(FloodMonitoringDB.timestamp.desc()).limit(limit).all()
+            return [r.to_dict() for r in records]
+    except Exception as err:
+        logger.warning(f"Failed to fetch flood logs: {err}")
+        return []
