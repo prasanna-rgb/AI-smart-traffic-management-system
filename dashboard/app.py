@@ -382,12 +382,15 @@ if sim_mode == "Manual Scenario Builder":
         with st.spinner(f"Processing CrewAI pipeline for custom {selected_road} telemetry..."):
             run_traffic_crew(custom_input)
             st.sidebar.success(f"Custom scenario executed for {selected_road}!")
+            st.rerun()
 else:
     if st.sidebar.button("⚡ Run Simulation Tick", use_container_width=True):
-        with st.spinner("Executing CrewAI 6-Agent Pipeline..."):
+        with st.spinner("Executing CrewAI Multi-Agent Pipeline..."):
             sim_data = TrafficSimulator.generate_random_telemetry(road=selected_road)
             run_traffic_crew(sim_data)
             st.sidebar.success(f"Simulation processed for {selected_road}!")
+            st.rerun()
+
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🔊 Voice Broadcast Control")

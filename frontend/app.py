@@ -439,6 +439,7 @@ if sim_mode == "Manual Scenario Injection":
         with st.spinner(f"Executing CrewAI agent pipeline for {selected_road}..."):
             run_traffic_crew(custom_input, registered_phone=reg_phone)
             st.sidebar.success(f"Custom telemetry frame processed for {selected_road}")
+            st.rerun()
 else:
     st.sidebar.caption("🌐 Currently pulling live real-time weather & traffic telemetry via Open-Meteo API & OpenStreetMap GPS coordinates.")
     if st.sidebar.button("⚡ Fetch Live Real-Time API Feed & Run Agents", use_container_width=True):
@@ -446,6 +447,7 @@ else:
             sim_data = TrafficSimulator.generate_random_telemetry(road=selected_road)
             run_traffic_crew(sim_data, registered_phone=reg_phone)
             st.sidebar.success(f"Live API data fetched for {selected_road}!")
+            st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🔊 System Controls")
@@ -471,33 +473,39 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 🟢 Agent Service Status")
 st.sidebar.markdown("""
 - 🟢 **Traffic Monitor Agent**: Active
+- 🟢 **Driver Behavior & Safety Agent**: Active
 - 🟢 **Congestion Prediction Agent**: Active
 - 🟢 **Emergency Vehicle Agent**: Active
 - 🟢 **Signal Optimization Agent**: Active
 - 🟢 **Citizen Liaison Agent**: Active
 - 🟢 **Analytics Agent**: Active
-- 🟢 **V2I Pre-Crash Agent**: Active
 """)
 
 # Fetch latest reports & telemetry
 reports = get_latest_reports(limit=20)
-filtered_reports = [r for r in reports if r["road_name"] == selected_road]
+filtered_reports = [r for r in reports if r.get("road_name") == selected_road]
 
 if not filtered_reports:
     sim_data = TrafficSimulator.generate_random_telemetry(road=selected_road)
-    run_traffic_crew(sim_data)
+    run_traffic_crew(sim_data, registered_phone=reg_phone)
     reports = get_latest_reports(limit=20)
-    filtered_reports = [r for r in reports if r["road_name"] == selected_road]
+    filtered_reports = [r for r in reports if r.get("road_name") == selected_road]
 
-latest_report_obj = filtered_reports[0] if filtered_reports else reports[0]
+latest_report_obj = filtered_reports[0] if filtered_reports else (reports[0] if reports else {})
 full_report = latest_report_obj.get("full_report", {})
 
+if not full_report or not full_report.get("traffic_report"):
+    sim_data = TrafficSimulator.generate_random_telemetry(road=selected_road)
+    full_report = run_traffic_crew(sim_data, registered_phone=reg_phone)
+
 t_rep = full_report.get("traffic_report", {})
+d_safe = full_report.get("driver_safety", {})
 c_pred = full_report.get("congestion_prediction", {})
 e_corr = full_report.get("emergency_corridor", {})
 s_opt = full_report.get("signal_optimization", {})
 c_alt = full_report.get("citizen_alerts", {})
 a_sum = full_report.get("analytics_summary", {})
+
 
 # Emergency Alert Banners & Audio Announcements
 if e_corr.get("green_corridor_active"):
