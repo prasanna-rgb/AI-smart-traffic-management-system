@@ -1239,10 +1239,11 @@ with tab4:
     with col_pdf2:
         pdf_data = generate_traffic_pdf_report(
             road_name=selected_road,
-            reports=reports,
+            reports=get_latest_reports(limit=30),
             analytics=get_analytics_summary(limit=30),
             alerts=get_active_alerts(limit=30)
         )
+
         st.download_button(
             label="📥 Export Executive PDF Report",
             data=pdf_data,

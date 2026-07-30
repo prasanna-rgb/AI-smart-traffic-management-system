@@ -5,8 +5,8 @@ from .emergency_agent import create_emergency_agent, process_emergency_rule_base
 from .signal_agent import create_signal_agent, process_signal_rule_based
 from .citizen_agent import create_citizen_agent, process_citizen_rule_based
 from .analytics_agent import create_analytics_agent, process_analytics_rule_based
-
 from .driver_safety_agent import create_driver_safety_agent, process_driver_safety_rule_based
+from .weather_agent import create_weather_agent, process_weather_rule_based
 
 __all__ = [
     "create_traffic_monitor_agent",
@@ -22,6 +22,7 @@ __all__ = [
     "create_citizen_agent",
     "process_citizen_rule_based",
     "create_analytics_agent",
-    "process_analytics_rule_based"
+    "process_analytics_rule_based",
+    "create_weather_agent",
+    "process_weather_rule_based"
 ]
-
