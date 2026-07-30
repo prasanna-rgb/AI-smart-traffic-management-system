@@ -11,44 +11,65 @@ except Exception:
     Task = None
 
 def create_traffic_tasks(agents: Dict[str, Any], telemetry_input: Dict[str, Any]) -> List:
-    """Creates sequential task objects for all 6 CrewAI agents if CrewAI is loaded."""
+    """Creates sequential task objects for all CrewAI agents if CrewAI is loaded."""
     if not CREWAI_AVAILABLE or Task is None:
         return []
         
     t_vision = Task(
         description=f"Analyze raw camera stream telemetry for intersection {telemetry_input.get('road', 'INT-01')}: {telemetry_input}. Count cars, buses, trucks, motorcycles, and ambulances.",
         expected_output="JSON object containing exact fleet composition counts, density percentage, and emergency vehicle status.",
-        agent=agents.get("vision")
+        agent=agents.get("vision", agents.get("monitor"))
     )
 
-    t_analysis = Task(
-        description="Evaluate vision metrics to calculate Level of Service (LOS A-F), vehicle queue length, occupancy rate, and identify bottleneck congestion points.",
-        expected_output="JSON object with LOS grade, average delay seconds, and queue length in meters.",
-        agent=agents.get("traffic_analysis")
-    )
+    tasks = [t_vision]
 
-    t_prediction = Task(
-        description="Forecast 5, 10, 15, and 30-minute congestion score trends based on current inflow and analysis metrics.",
-        expected_output="JSON object with 5m, 10m, 15m, 30m forecast scores and trend narrative.",
-        agent=agents.get("prediction")
-    )
+    if "driver_safety" in agents:
+        t_driver_safety = Task(
+            description="Analyze driver and vehicle telemetry. Detect 8 violation categories, calculate Driver Safety Score (0-100), predict future risk probability, and generate safety alerts.",
+            expected_output="JSON object with vehicle_id, safety_score, risk_level, violations, primary_hazard, recommendation, risk_prediction, and formatted_alert.",
+            agent=agents.get("driver_safety")
+        )
+        tasks.append(t_driver_safety)
 
-    t_pollution = Task(
-        description="Calculate environmental impact metrics including CO2 (kg/hr), NOx (g/hr), PM2.5 (g/hr), and fuel consumption rates.",
-        expected_output="JSON object with CO2 emissions, NOx, PM2.5, fuel burn rate, and Eco Index score.",
-        agent=agents.get("pollution")
-    )
+    if "traffic_analysis" in agents:
+        t_analysis = Task(
+            description="Evaluate vision metrics to calculate Level of Service (LOS A-F), vehicle queue length, occupancy rate, and identify bottleneck congestion points.",
+            expected_output="JSON object with LOS grade, average delay seconds, and queue length in meters.",
+            agent=agents.get("traffic_analysis")
+        )
+        tasks.append(t_analysis)
 
-    t_emergency = Task(
-        description="Check for emergency vehicles and determine green corridor routing across connected intersections.",
-        expected_output="JSON object with emergency status, priority score (1-10), and green corridor path list.",
-        agent=agents.get("emergency")
-    )
+    if "prediction" in agents:
+        t_prediction = Task(
+            description="Forecast 5, 10, 15, and 30-minute congestion score trends based on current inflow and analysis metrics.",
+            expected_output="JSON object with 5m, 10m, 15m, 30m forecast scores and trend narrative.",
+            agent=agents.get("prediction")
+        )
+        tasks.append(t_prediction)
 
-    t_decision = Task(
-        description="Reason over all previous agent outputs to determine optimal green signal timing splits and generate natural language explainable AI (XAI) decision rationale.",
-        expected_output="JSON object with optimized signal timing splits, active phase, and detailed natural language XAI decision reasoning.",
-        agent=agents.get("decision")
-    )
+    if "pollution" in agents:
+        t_pollution = Task(
+            description="Calculate environmental impact metrics including CO2 (kg/hr), NOx (g/hr), PM2.5 (g/hr), and fuel consumption rates.",
+            expected_output="JSON object with CO2 emissions, NOx, PM2.5, fuel burn rate, and Eco Index score.",
+            agent=agents.get("pollution")
+        )
+        tasks.append(t_pollution)
 
-    return [t_vision, t_analysis, t_prediction, t_pollution, t_emergency, t_decision]
+    if "emergency" in agents:
+        t_emergency = Task(
+            description="Check for emergency vehicles and determine green corridor routing across connected intersections.",
+            expected_output="JSON object with emergency status, priority score (1-10), and green corridor path list.",
+            agent=agents.get("emergency")
+        )
+        tasks.append(t_emergency)
+
+    if "decision" in agents:
+        t_decision = Task(
+            description="Reason over all previous agent outputs to determine optimal green signal timing splits and generate natural language explainable AI (XAI) decision rationale.",
+            expected_output="JSON object with optimized signal timing splits, active phase, and detailed natural language XAI decision reasoning.",
+            agent=agents.get("decision")
+        )
+        tasks.append(t_decision)
+
+    return tasks
+

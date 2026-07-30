@@ -32,8 +32,10 @@ from tools.audio_announcer import generate_voice_announcement_html
 from tools.vision_simulator import VisionSimulator
 from tools.whatsapp_notifier import WhatsAppNotifier
 from tools.driver_behavior import DriverBehaviorAnalyzer
+from tools.driver_behavior_tools import DriverBehaviorTools
 from crew import run_traffic_crew
 import pydeck as pdk
+
 
 try:
     import folium
@@ -574,10 +576,24 @@ with tab1:
         )
 
     with ag2:
+        d_safe = t_rep.get("driver_safety", DriverBehaviorTools.evaluate_telemetry(t_rep))
+        st.markdown(
+            f"""
+            <div class='agent-box' style='border-left: 4px solid #F59E0B;'>
+                <div class='agent-title' style='color: #F59E0B;'>2. Driver Behavior & Safety Agent</div>
+                <p><b>Vehicle ID:</b> {d_safe.get('vehicle_id', 'VH101')}</p>
+                <p><b>Safety Score:</b> {d_safe.get('safety_score', 100)} / 100 ({d_safe.get('risk_level', 'LOW')} Risk)</p>
+                <p><b>Primary Hazard:</b> {d_safe.get('primary_hazard', 'None')}</p>
+                <p><b>Total Violations:</b> {d_safe.get('total_violations', 0)} events</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
         st.markdown(
             f"""
             <div class='agent-box'>
-                <div class='agent-title'>2. Congestion Prediction Agent</div>
+                <div class='agent-title'>3. Congestion Prediction Agent</div>
                 <p><b>Congestion Risk:</b> {c_pred.get('risk_level')}</p>
                 <p><b>Predicted Trend:</b> {c_pred.get('predicted_trend')}</p>
                 <p><b>Est. Delay:</b> {c_pred.get('estimated_delay_minutes')} mins</p>
@@ -586,6 +602,7 @@ with tab1:
             """,
             unsafe_allow_html=True
         )
+
 
         st.markdown(
             f"""
@@ -630,33 +647,65 @@ with tab_vision:
 
 with tab_driver:
     st.markdown("### 🚘 Driver Behavior & Safety Analytics Engine")
-    st.caption("AI telemetry analysis for Sudden Braking, Wrong-Way Driving, Overspeeding, Illegal U-Turns, and Lane Violations.")
+    st.caption("AI telemetry analysis for Sudden Braking, Wrong-Way Driving, Overspeeding, Illegal U-Turns, and Lane Violations with Risk Prediction & Location Intelligence.")
 
-    driver_data = DriverBehaviorAnalyzer.analyze_driver_behavior(t_rep)
-    v_breakdown = driver_data["violations_breakdown"]
+    # Scenario Selection (Telemetry Simulator for Test Cases)
+    test_cases = DriverBehaviorTools.get_test_cases()
+    tc_names = ["Live Road Telemetry"] + [tc["case_name"] for tc in test_cases]
+    selected_scenario = st.selectbox("🧪 Select Telemetry Scenario / Test Case", tc_names, index=0)
 
+    if selected_scenario == "Live Road Telemetry":
+        # Extract driver safety report from crew execution or generate dynamically
+        if "driver_safety" in t_rep:
+            driver_eval = t_rep["driver_safety"]
+        else:
+            driver_eval = DriverBehaviorTools.evaluate_telemetry(t_rep)
+    else:
+        # Find matching test case payload
+        matched_tc = next(tc for tc in test_cases if tc["case_name"] == selected_scenario)
+        driver_eval = DriverBehaviorTools.evaluate_telemetry(matched_tc["telemetry"])
+
+    v_breakdown = driver_eval.get("violations", {})
+    risk_pred = driver_eval.get("risk_prediction", {})
+    loc_intel = driver_eval.get("location_intelligence", {})
+    score = driver_eval.get("safety_score", 100)
+    risk_lvl = driver_eval.get("risk_level", "LOW")
+
+    # Driver Safety Index & Gauge
     col_d1, col_d2 = st.columns([1, 2])
     with col_d1:
         st.subheader("Driver Safety Index")
-        st.info(f"**Current Status:** {driver_data['safety_rating']}")
+        status_color = "#10B981" if risk_lvl == "LOW" else ("#F59E0B" if risk_lvl == "MEDIUM" else ("#F97316" if risk_lvl == "HIGH" else "#EF4444"))
         
+        st.markdown(
+            f"""
+            <div style='background-color: #1E293B; border-left: 5px solid {status_color}; padding: 12px; border-radius: 8px; margin-bottom: 12px;'>
+                <p style='margin: 0; font-size: 0.9rem; color: #94A3B8;'>CURRENT STATUS & RISK LEVEL</p>
+                <p style='margin: 0; font-size: 1.3rem; font-weight: 700; color: {status_color};'>{risk_lvl} RISK LEVEL ({score}/100)</p>
+                <p style='margin: 4px 0 0 0; font-size: 0.85rem; color: #E2E8F0;'>Reason: {driver_eval.get('primary_hazard', 'Normal Flow')}</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
         fig_safety = go.Figure(go.Indicator(
             mode="gauge+number",
-            value=driver_data['safety_score'],
-            title={'text': "Safety Score Index (0-100)"},
+            value=score,
+            title={'text': f"Vehicle ID: {driver_eval.get('vehicle_id', 'VH101')}"},
             gauge={
                 'axis': {'range': [0, 100]},
-                'bar': {'color': "#10B981" if driver_data['safety_score'] > 75 else ("#F59E0B" if driver_data['safety_score'] > 50 else "#EF4444")},
+                'bar': {'color': status_color},
                 'steps': [
-                    {'range': [0, 50], 'color': "#1E293B"},
-                    {'range': [50, 75], 'color': "#334155"},
-                    {'range': [75, 100], 'color': "#0F172A"}
+                    {'range': [0, 39], 'color': "#7F1D1D"},
+                    {'range': [40, 59], 'color': "#431407"},
+                    {'range': [60, 79], 'color': "#451A03"},
+                    {'range': [80, 100], 'color': "#064E3B"}
                 ]
             }
         ))
         fig_safety.update_layout(
             template="plotly_dark",
-            height=260,
+            height=250,
             margin=dict(l=20, r=20, t=40, b=20),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
@@ -673,7 +722,7 @@ with tab_driver:
                 f"""
                 <div class='metric-card' style='border-left-color: #EF4444;'>
                     <div class='metric-title'>🛑 Sudden Braking</div>
-                    <div class='metric-value'>{v_breakdown['sudden_braking']} <span style='font-size: 1rem;'>events</span></div>
+                    <div class='metric-value'>{v_breakdown.get('sudden_braking', 0)} <span style='font-size: 1rem;'>events</span></div>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -683,7 +732,7 @@ with tab_driver:
                 f"""
                 <div class='metric-card' style='border-left-color: #F59E0B;'>
                     <div class='metric-title'>⛔ Wrong-Way Driving</div>
-                    <div class='metric-value'>{v_breakdown['wrong_way_driving']} <span style='font-size: 1rem;'>incidents</span></div>
+                    <div class='metric-value'>{v_breakdown.get('wrong_way', 0)} <span style='font-size: 1rem;'>incidents</span></div>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -693,7 +742,7 @@ with tab_driver:
                 f"""
                 <div class='metric-card' style='border-left-color: #38BDF8;'>
                     <div class='metric-title'>⚡ Overspeeding</div>
-                    <div class='metric-value'>{v_breakdown['overspeeding']} <span style='font-size: 1rem;'>vehicles</span></div>
+                    <div class='metric-value'>{v_breakdown.get('overspeeding', 0)} <span style='font-size: 1rem;'>vehicles</span></div>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -706,7 +755,7 @@ with tab_driver:
                 f"""
                 <div class='metric-card' style='border-left-color: #A855F7;'>
                     <div class='metric-title'>↩️ Illegal U-Turns</div>
-                    <div class='metric-value'>{v_breakdown['illegal_uturns']} <span style='font-size: 1rem;'>events</span></div>
+                    <div class='metric-value'>{v_breakdown.get('illegal_u_turn', 0)} <span style='font-size: 1rem;'>events</span></div>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -716,7 +765,7 @@ with tab_driver:
                 f"""
                 <div class='metric-card' style='border-left-color: #10B981;'>
                     <div class='metric-title'>🛣️ Lane Violations</div>
-                    <div class='metric-value'>{v_breakdown['lane_violations']} <span style='font-size: 1rem;'>drifts</span></div>
+                    <div class='metric-value'>{v_breakdown.get('lane_violations', 0)} <span style='font-size: 1rem;'>drifts</span></div>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -726,22 +775,49 @@ with tab_driver:
                 f"""
                 <div class='metric-card' style='border-left-color: #EC4899;'>
                     <div class='metric-title'>📊 Total Violations</div>
-                    <div class='metric-value'>{driver_data['total_violations']} <span style='font-size: 1rem;'>total</span></div>
+                    <div class='metric-value'>{driver_eval.get('total_violations', 0)} <span style='font-size: 1rem;'>total</span></div>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
-    st.markdown("#### 🚨 Safety Intelligence Audit Alerts")
-    for alert in driver_data["safety_alerts"]:
+    st.markdown("<hr style='border-color: #1E293B;'>", unsafe_allow_html=True)
+
+    # Innovative Feature & Location Intelligence
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        st.subheader("🔮 Driver Risk Prediction Engine")
+        pred_badge_color = "#EF4444" if risk_pred.get("probability") == "HIGH" else ("#F59E0B" if risk_pred.get("probability") == "MODERATE" else "#10B981")
         st.markdown(
             f"""
-            <div class='agent-box' style='margin-bottom: 0.5rem;'>
-                <p style='margin: 0; font-size: 1rem;'>{alert}</p>
+            <div style='background-color: #111827; border: 1px solid #374151; padding: 16px; border-radius: 8px;'>
+                <p style='margin: 0 0 6px 0; font-size: 0.9rem; color: #9CA3AF;'>FUTURE UNSAFE DRIVING PROBABILITY</p>
+                <span style='background-color: {pred_badge_color}; color: #FFFFFF; font-weight: 700; padding: 4px 10px; border-radius: 12px;'>{risk_pred.get('probability', 'LOW')} PROBABILITY</span>
+                <p style='margin: 12px 0 6px 0; font-size: 1rem; color: #F3F4F6; font-weight: 600;'>"{risk_pred.get('statement', '')}"</p>
+                <p style='margin: 0; font-size: 0.9rem; color: #38BDF8;'><strong>Preventive Action:</strong> {risk_pred.get('preventive_action', '')}</p>
             </div>
             """,
             unsafe_allow_html=True
         )
+
+    with col_p2:
+        st.subheader("📍 Location Intelligence & Violation Hotspot")
+        gps = driver_eval.get("location", {})
+        st.markdown(
+            f"""
+            <div style='background-color: #111827; border: 1px solid #374151; padding: 16px; border-radius: 8px;'>
+                <p style='margin: 0 0 6px 0; font-size: 0.9rem; color: #9CA3AF;'>GEOSPATIAL COORDINATES</p>
+                <p style='margin: 0; font-size: 1.05rem; font-weight: 700; color: #F3F4F6;'>Road ID: {driver_eval.get('road_id', 'Main Road')}</p>
+                <p style='margin: 4px 0; font-size: 0.95rem; color: #E5E7EB;'>Latitude: {gps.get('latitude', 13.0827)}, Longitude: {gps.get('longitude', 80.2707)}</p>
+                <p style='margin: 4px 0 0 0; font-size: 0.9rem; color: #A855F7;'><strong>Zone Classification:</strong> {loc_intel.get('zone_classification', 'Standard Corridor')}</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    st.markdown("#### 🚨 Safety Intelligence Audit Alerts")
+    st.code(driver_eval.get("formatted_alert", ""), language="text")
+
 
 with tab_gis:
     st.markdown("### 🗺️ Live GIS & Google Maps Visualizer")

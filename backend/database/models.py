@@ -291,3 +291,42 @@ class AnalyticsDB(Base):
             "road_performance_score": self.road_performance_score,
             "summary_notes": self.summary_notes
         }
+
+
+class DriverSafetyLogDB(Base):
+    """Driver Behavior, Safety Scores & Violations Log Table."""
+    __tablename__ = "driver_safety_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    vehicle_id = Column(String(100), nullable=False, index=True)
+    road_id = Column(String(100), nullable=False, index=True)
+    latitude = Column(Float, default=13.0827)
+    longitude = Column(Float, default=80.2707)
+    safety_score = Column(Integer, nullable=False)
+    risk_level = Column(String(50), nullable=False) # LOW, MEDIUM, HIGH, CRITICAL
+    total_violations = Column(Integer, default=0)
+    violations_json = Column(Text, nullable=False)
+    primary_hazard = Column(String(250), nullable=True)
+    recommendation = Column(Text, nullable=True)
+    prediction_json = Column(Text, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "vehicle_id": self.vehicle_id,
+            "road_id": self.road_id,
+            "location": {
+                "latitude": self.latitude,
+                "longitude": self.longitude
+            },
+            "safety_score": self.safety_score,
+            "risk_level": self.risk_level,
+            "total_violations": self.total_violations,
+            "violations": json.loads(self.violations_json) if self.violations_json else {},
+            "primary_hazard": self.primary_hazard,
+            "recommendation": self.recommendation,
+            "risk_prediction": json.loads(self.prediction_json) if self.prediction_json else {}
+        }
+

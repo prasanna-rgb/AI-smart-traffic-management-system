@@ -169,11 +169,52 @@ def set_stream_source(payload: Dict[str, Any]):
     return {"status": "success", "active_source": source}
 
 
+# --- DRIVER BEHAVIOR & SAFETY ANALYTICS ROUTES ---
+
+@router.post("/driver-safety/analyze", summary="Analyze driver telemetry and compute Driver Safety Score")
+def analyze_driver_safety(telemetry: Dict[str, Any], db: Session = Depends(get_db)):
+    """
+    Analyze vehicle telemetry to detect 8 violation types, compute Driver Safety Score (0-100),
+    predict future driver risk, log GPS location intelligence, and raise safety alerts.
+    """
+    from tools.driver_behavior_tools import DriverBehaviorTools
+    from database.db import save_driver_safety_log
+    
+    try:
+        result = DriverBehaviorTools.evaluate_telemetry(telemetry)
+        save_driver_safety_log(db, result)
+        return {"status": "success", "driver_safety": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to analyze driver safety: {str(e)}")
+
+
+@router.get("/driver-safety/logs", summary="Get driver safety assessment logs")
+def fetch_driver_safety_logs(limit: int = 20):
+    from database.db import get_driver_safety_logs
+    logs = get_driver_safety_logs(limit=limit)
+    return {"status": "success", "count": len(logs), "logs": logs}
+
+
+@router.get("/driver-safety/test-cases", summary="Get 6 simulated driver telemetry test scenarios")
+def get_driver_safety_test_scenarios():
+    from tools.driver_behavior_tools import DriverBehaviorTools
+    test_cases = DriverBehaviorTools.get_test_cases()
+    results = []
+    for tc in test_cases:
+        eval_res = DriverBehaviorTools.evaluate_telemetry(tc["telemetry"])
+        results.append({
+            "case_name": tc["case_name"],
+            "input_telemetry": tc["telemetry"],
+            "evaluation": eval_res
+        })
+    return {"status": "success", "count": len(results), "test_cases": results}
+
+
 # --- LEGACY STREAMLIT & BACKWARDS COMPATIBILITY ROUTES ---
 
 @router.get("/status", tags=["Legacy Compatibility"])
 def legacy_status():
-    return {"status": "ONLINE", "mode": "OPERATIONAL", "agents": 6}
+    return {"status": "ONLINE", "mode": "OPERATIONAL", "agents": 7}
 
 
 @router.get("/report", tags=["Legacy Compatibility"])
@@ -189,3 +230,4 @@ def legacy_input(payload: Dict[str, Any]):
 @router.get("/alerts", tags=["Legacy Compatibility"])
 def legacy_alerts(limit: int = 20):
     return {"alerts": get_all_alerts(limit=limit)}
+

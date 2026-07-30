@@ -21,8 +21,10 @@ from database.models import (
     TrafficDataDB,
     TrafficReportDB,
     AlertDB,
-    AnalyticsDB
+    AnalyticsDB,
+    DriverSafetyLogDB
 )
+
 
 logger = logging.getLogger("smart_traffic_ai.database")
 
@@ -301,3 +303,43 @@ def get_analytics_summary(limit: int = 10):
         return [a.to_dict() for a in analytics]
     finally:
         db.close()
+
+
+def save_driver_safety_log(db_session: Optional[Session], data: dict):
+    """Persist driver safety report to database."""
+    should_close = False
+    if db_session is None:
+        db_session = SessionLocal()
+        should_close = True
+    try:
+        loc = data.get("location", {})
+        record = DriverSafetyLogDB(
+            timestamp=datetime.utcnow(),
+            vehicle_id=data.get("vehicle_id", "VH101"),
+            road_id=data.get("road_id", data.get("road", "Main Road")),
+            latitude=float(loc.get("latitude", 13.0827)),
+            longitude=float(loc.get("longitude", 80.2707)),
+            safety_score=int(data.get("safety_score", 100)),
+            risk_level=str(data.get("risk_level", "LOW")),
+            total_violations=int(data.get("total_violations", 0)),
+            violations_json=json.dumps(data.get("violations", {})),
+            primary_hazard=data.get("primary_hazard", "None"),
+            recommendation=data.get("recommendation", ""),
+            prediction_json=json.dumps(data.get("risk_prediction", {}))
+        )
+        db_session.add(record)
+        db_session.commit()
+        return record.to_dict()
+    finally:
+        if should_close:
+            db_session.close()
+
+
+def get_driver_safety_logs(limit: int = 20):
+    db = SessionLocal()
+    try:
+        logs = db.query(DriverSafetyLogDB).order_by(DriverSafetyLogDB.timestamp.desc()).limit(limit).all()
+        return [l.to_dict() for l in logs]
+    finally:
+        db.close()
+

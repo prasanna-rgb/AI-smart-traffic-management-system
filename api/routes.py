@@ -13,9 +13,12 @@ from database.db import (
     get_latest_reports,
     get_latest_traffic_data,
     get_active_alerts,
-    get_analytics_summary
+    get_analytics_summary,
+    save_driver_safety_log,
+    get_driver_safety_logs
 )
 from tools.simulation_tools import TrafficSimulator
+from tools.driver_behavior_tools import DriverBehaviorTools
 from crew import run_traffic_crew
 
 router = APIRouter(prefix="/traffic", tags=["Traffic Management"])
@@ -30,7 +33,7 @@ def get_system_status():
     return SystemStatusSchema(
         status="ONLINE",
         version="1.0.0",
-        active_agents=6,
+        active_agents=7,
         junctions_monitored=5,
         active_emergency_corridors=active_corridors,
         database_status="CONNECTED"
@@ -59,7 +62,6 @@ def get_traffic_reports(limit: int = Query(10, ge=1, le=50)):
     """Fetch latest traffic reports and agent execution decisions."""
     reports = get_latest_reports(limit=limit)
     if not reports:
-        # Trigger a default simulation run to populate database
         sim_data = TrafficSimulator.generate_random_telemetry(road="Main Road")
         run_traffic_crew(sim_data)
         reports = get_latest_reports(limit=limit)
@@ -79,3 +81,40 @@ def get_traffic_analytics(limit: int = Query(20, ge=1, le=100)):
         "recent_alerts": alerts,
         "raw_telemetry": raw_data
     }
+
+
+@router.post("/driver-safety/analyze")
+def analyze_driver_safety(telemetry: Dict[str, Any]):
+    """
+    Analyze driver telemetry to detect violations, compute Safety Score (0-100),
+    predict risk probability, and generate safety alerts.
+    """
+    try:
+        result = DriverBehaviorTools.evaluate_telemetry(telemetry)
+        save_driver_safety_log(result)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to analyze driver behavior: {str(e)}")
+
+
+@router.get("/driver-safety/logs")
+def fetch_driver_safety_logs(limit: int = Query(20, ge=1, le=100)):
+    """Retrieve persisted driver safety logs."""
+    logs = get_driver_safety_logs(limit=limit)
+    return {"count": len(logs), "logs": logs}
+
+
+@router.get("/driver-safety/test-cases")
+def get_driver_safety_test_cases():
+    """Returns 6 predefined telemetry test cases for demonstration and testing."""
+    test_cases = DriverBehaviorTools.get_test_cases()
+    results = []
+    for tc in test_cases:
+        eval_res = DriverBehaviorTools.evaluate_telemetry(tc["telemetry"])
+        results.append({
+            "case_name": tc["case_name"],
+            "input_telemetry": tc["telemetry"],
+            "evaluation": eval_res
+        })
+    return {"count": len(results), "test_cases": results}
+

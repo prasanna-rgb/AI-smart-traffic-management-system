@@ -7,7 +7,8 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config.settings import DATABASE_URL
-from database.models import Base, TrafficDataDB, TrafficReportDB, AlertDB, AnalyticsDB
+from database.models import Base, TrafficDataDB, TrafficReportDB, AlertDB, AnalyticsDB, DriverSafetyLogDB
+
 
 # Create engine
 engine = create_engine(
@@ -138,3 +139,35 @@ def get_analytics_summary(limit: int = 50):
     with get_db() as db:
         records = db.query(AnalyticsDB).order_by(AnalyticsDB.timestamp.desc()).limit(limit).all()
         return [r.to_dict() for r in records]
+
+
+def save_driver_safety_log(data: dict) -> DriverSafetyLogDB:
+    """Persist driver safety assessment and violations to database."""
+    with get_db() as db:
+        loc = data.get("location", {})
+        record = DriverSafetyLogDB(
+            timestamp=datetime.utcnow(),
+            vehicle_id=data.get("vehicle_id", "VH101"),
+            road_id=data.get("road_id", data.get("road", "Main Road")),
+            latitude=float(loc.get("latitude", 13.0827)),
+            longitude=float(loc.get("longitude", 80.2707)),
+            safety_score=int(data.get("safety_score", 100)),
+            risk_level=str(data.get("risk_level", "LOW")),
+            total_violations=int(data.get("total_violations", 0)),
+            violations_json=json.dumps(data.get("violations", {})),
+            primary_hazard=data.get("primary_hazard", "None"),
+            recommendation=data.get("recommendation", ""),
+            prediction_json=json.dumps(data.get("risk_prediction", {}))
+        )
+        db.add(record)
+        db.flush()
+        db.refresh(record)
+        return record
+
+
+def get_driver_safety_logs(limit: int = 20):
+    """Retrieve recent driver safety logs."""
+    with get_db() as db:
+        records = db.query(DriverSafetyLogDB).order_by(DriverSafetyLogDB.timestamp.desc()).limit(limit).all()
+        return [r.to_dict() for r in records]
+

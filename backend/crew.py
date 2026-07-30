@@ -18,6 +18,7 @@ except Exception as e:
 from config.settings import get_llm
 from agents import (
     create_vision_agent, process_vision_rule_based,
+    create_driver_safety_agent, process_driver_safety_rule_based,
     create_traffic_analysis_agent, process_traffic_analysis_rule_based,
     create_prediction_agent, process_prediction_rule_based,
     create_pollution_agent, process_pollution_rule_based,
@@ -36,8 +37,10 @@ from database.db import (
     save_traffic_input,
     save_traffic_report,
     save_alert,
-    save_analytics
+    save_analytics,
+    save_driver_safety_log
 )
+
 
 logger = logging.getLogger("smart_traffic_ai.crew")
 
@@ -105,8 +108,9 @@ class SmartTrafficCrew:
         return report
 
     def _run_rule_based_flow(self, telemetry: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute high-speed deterministic workflow across all 6 agents."""
+        """Execute high-speed deterministic workflow across all agents."""
         vision_out = process_vision_rule_based(telemetry)
+        driver_safety_out = process_driver_safety_rule_based(telemetry)
         analysis_out = process_traffic_analysis_rule_based(vision_out)
         prediction_out = process_prediction_rule_based(vision_out, analysis_out)
         pollution_out = process_pollution_rule_based(vision_out, analysis_out)
@@ -117,6 +121,7 @@ class SmartTrafficCrew:
             "execution_timestamp": datetime.utcnow().isoformat(),
             "intersection_code": vision_out.get("intersection_code", "INT-01"),
             "vision": vision_out,
+            "driver_safety": driver_safety_out,
             "analysis": analysis_out,
             "prediction": prediction_out,
             "pollution": pollution_out,
@@ -128,12 +133,15 @@ class SmartTrafficCrew:
         """Execute CrewAI multi-agent sequential pipeline."""
         agents = {
             "vision": create_vision_agent(),
+            "driver_safety": create_driver_safety_agent(),
             "traffic_analysis": create_traffic_analysis_agent(),
             "prediction": create_prediction_agent(),
             "pollution": create_pollution_agent(),
             "emergency": create_emergency_agent(),
             "decision": create_decision_agent()
         }
+
+        agents = {k: v for k, v in agents.items() if v is not None}
 
         tasks = create_traffic_tasks(agents, telemetry)
 
@@ -148,6 +156,7 @@ class SmartTrafficCrew:
         base = self._run_rule_based_flow(telemetry)
         base["crew_raw_output"] = str(crew_output)
         return base
+
 
 
 def run_traffic_crew(telemetry_input: Dict[str, Any]) -> Dict[str, Any]:
