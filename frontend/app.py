@@ -410,6 +410,9 @@ st.markdown(f"""
 st.sidebar.markdown("### 🎛️ Control Center")
 selected_road = st.sidebar.selectbox("Active Monitoring Junction", ROADS)
 
+# Add explicit manual refresh button
+refresh_requested = st.sidebar.button("🔄 Refresh Traffic Data", use_container_width=True)
+
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📱 Registered Commuter Phone Number")
 reg_phone = st.sidebar.text_input("Mobile Number for AI Auto-Alerts", value="+916383258373", help="When Emergency, Accident, or Congestion >70 trigger automatically, AI dispatches WhatsApp & SMS to this number!")
@@ -417,6 +420,16 @@ reg_phone = st.sidebar.text_input("Mobile Number for AI Auto-Alerts", value="+91
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌐 Data Source Engine")
 sim_mode = st.sidebar.radio("Telemetry Data Source", ["🌐 Live Real-Time API Data Feed (Open-Meteo & Live GPS)", "Manual Scenario Injection"])
+
+# Track state keys
+road_telemetry_key = f"cached_telemetry_{selected_road}"
+road_report_key = f"cached_report_{selected_road}"
+session_key = f"traffic_state_{selected_road}"
+road_changed_key = f"active_road_cache"
+
+road_changed = st.session_state.get(road_changed_key) != selected_road
+if road_changed:
+    st.session_state[road_changed_key] = selected_road
 
 if sim_mode == "Manual Scenario Injection":
     st.sidebar.markdown("#### Scenario Parameters")
@@ -439,7 +452,8 @@ if sim_mode == "Manual Scenario Injection":
             "weather": man_weather
         }
         with st.spinner(f"Executing CrewAI agent pipeline for {selected_road}..."):
-            run_traffic_crew(custom_input, registered_phone=reg_phone)
+            st.session_state[road_telemetry_key] = custom_input
+            st.session_state[road_report_key] = run_traffic_crew(custom_input, registered_phone=reg_phone)
             st.sidebar.success(f"Custom telemetry frame processed for {selected_road}")
             st.rerun()
     st.sidebar.markdown("---")
@@ -455,7 +469,8 @@ if sim_mode == "Manual Scenario Injection":
                 "accident_status": True,
                 "emergency_vehicle": False
             }
-            run_traffic_crew(sim_data, registered_phone=reg_phone)
+            st.session_state[road_telemetry_key] = sim_data
+            st.session_state[road_report_key] = run_traffic_crew(sim_data, registered_phone=reg_phone)
             st.rerun()
         if st.button("🚑 Ambulance", use_container_width=True):
             sim_data = {
@@ -466,7 +481,8 @@ if sim_mode == "Manual Scenario Injection":
                 "emergency_vehicle": True,
                 "emergency_type": "Ambulance"
             }
-            run_traffic_crew(sim_data, registered_phone=reg_phone)
+            st.session_state[road_telemetry_key] = sim_data
+            st.session_state[road_report_key] = run_traffic_crew(sim_data, registered_phone=reg_phone)
             st.rerun()
     with col_sc2:
         if st.button("🚒 Fire Truck", use_container_width=True):
@@ -478,7 +494,8 @@ if sim_mode == "Manual Scenario Injection":
                 "emergency_vehicle": True,
                 "emergency_type": "Fire Truck"
             }
-            run_traffic_crew(sim_data, registered_phone=reg_phone)
+            st.session_state[road_telemetry_key] = sim_data
+            st.session_state[road_report_key] = run_traffic_crew(sim_data, registered_phone=reg_phone)
             st.rerun()
         if st.button("✅ Resolve All", use_container_width=True):
             sim_data = {
@@ -490,14 +507,16 @@ if sim_mode == "Manual Scenario Injection":
                 "accident_resolved": True,
                 "emergency_vehicle_passed": True
             }
-            run_traffic_crew(sim_data, registered_phone=reg_phone)
+            st.session_state[road_telemetry_key] = sim_data
+            st.session_state[road_report_key] = run_traffic_crew(sim_data, registered_phone=reg_phone)
             st.rerun()
 else:
     st.sidebar.caption("🌐 Currently pulling live real-time weather & traffic telemetry via Open-Meteo API & OpenStreetMap GPS coordinates.")
     if st.sidebar.button("⚡ Fetch Live Real-Time API Feed & Run Agents", use_container_width=True):
         with st.spinner("Fetching Live API data & executing CrewAI Multi-Agent Pipeline..."):
-            sim_data = TrafficSimulator.generate_random_telemetry(road=selected_road)
-            run_traffic_crew(sim_data, registered_phone=reg_phone)
+            sim_data = TrafficDataFetcher.get_traffic_data(selected_road)
+            st.session_state[road_telemetry_key] = sim_data
+            st.session_state[road_report_key] = run_traffic_crew(sim_data, registered_phone=reg_phone)
             st.sidebar.success(f"Live API data fetched for {selected_road}!")
             st.rerun()
 
@@ -534,27 +553,36 @@ st.sidebar.markdown("""
 - 🟢 **Analytics Agent**: Active
 """)
 
-# Handle session state for previous vs current telemetry state comparison
-session_key = f"traffic_state_{selected_road}"
-prev_state = st.session_state.get(session_key)
+# Check if we need to fetch new telemetry frame (only on manual refresh, road change, or initial load)
+needs_fetch = refresh_requested or road_changed or (road_telemetry_key not in st.session_state) or (road_report_key not in st.session_state)
 
-# ALWAYS fetch fresh traffic data for selected road on page refresh or interaction
-current_telemetry = TrafficDataFetcher.get_traffic_data(selected_road)
+if needs_fetch:
+    prev_state = st.session_state.get(session_key)
+    current_telemetry = TrafficDataFetcher.get_traffic_data(selected_road)
+    full_report = run_traffic_crew(current_telemetry, registered_phone=reg_phone)
 
-# Compute deltas for previous vs current tracking
-if prev_state:
-    delta_vc = current_telemetry.get("vehicle_count", 0) - prev_state.get("vehicle_count", 0)
-    delta_spd = round(current_telemetry.get("average_speed", 0.0) - prev_state.get("average_speed", 0.0), 1)
-    delta_cg = current_telemetry.get("congestion_level", 0) - prev_state.get("congestion_level", 0)
-    data_changed = delta_vc != 0 or delta_spd != 0.0 or delta_cg != 0
+    if prev_state:
+        delta_vc = current_telemetry.get("vehicle_count", 0) - prev_state.get("vehicle_count", 0)
+        delta_spd = round(current_telemetry.get("average_speed", 0.0) - prev_state.get("average_speed", 0.0), 1)
+        delta_cg = current_telemetry.get("congestion_level", 0) - prev_state.get("congestion_level", 0)
+        data_changed = (delta_vc != 0 or delta_spd != 0.0 or delta_cg != 0)
+    else:
+        delta_vc, delta_spd, delta_cg = 0, 0.0, 0
+        data_changed = True
+
+    st.session_state[road_telemetry_key] = current_telemetry
+    st.session_state[road_report_key] = full_report
+    st.session_state[session_key] = current_telemetry
+    st.session_state[f"deltas_{selected_road}"] = (delta_vc, delta_spd, delta_cg)
+    st.session_state[f"changed_{selected_road}"] = data_changed
 else:
-    delta_vc = 0
-    delta_spd = 0.0
-    delta_cg = 0
-    data_changed = True
+    current_telemetry = st.session_state[road_telemetry_key]
+    full_report = st.session_state[road_report_key]
+    prev_state = st.session_state.get(session_key)
+    delta_vc, delta_spd, delta_cg = st.session_state.get(f"deltas_{selected_road}", (0, 0.0, 0))
+    data_changed = st.session_state.get(f"changed_{selected_road}", False)
 
-# Execute CrewAI Multi-Agent Pipeline with latest fresh data
-full_report = run_traffic_crew(current_telemetry, registered_phone=reg_phone)
+
 
 # Save current telemetry in session state for next cycle comparison
 st.session_state[session_key] = current_telemetry
