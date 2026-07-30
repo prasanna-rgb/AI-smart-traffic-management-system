@@ -158,19 +158,63 @@ def save_pollution_log(db: Session, pol_data: Dict[str, Any]):
     return record.to_dict()
 
 
-def save_emergency_event(db: Session, emergency_data: Dict[str, Any]):
-    record = EmergencyEventDB(
-        intersection_code=emergency_data.get("intersection_code", "INT-01"),
-        vehicle_type=emergency_data.get("vehicle_type", "AMBULANCE"),
-        priority=emergency_data.get("priority", 10),
-        active=emergency_data.get("active", True),
-        route_corridor_json=json.dumps(emergency_data.get("route_corridor", ["INT-01", "INT-03"])),
-        status_notes=emergency_data.get("status_notes", "Emergency Vehicle Green Corridor Cleared")
-    )
-    db.add(record)
-    db.commit()
-    db.refresh(record)
-    return record.to_dict()
+def save_emergency_event(db_or_data: Any, emergency_data: Optional[Dict[str, Any]] = None):
+    """Flexible emergency event persistence supporting both 1-arg (dict) and 2-arg (db, dict) call patterns."""
+    if isinstance(db_or_data, dict) and emergency_data is None:
+        data = db_or_data
+        db = SessionLocal()
+        should_close = True
+    else:
+        db = db_or_data
+        data = emergency_data or {}
+        should_close = False
+
+    try:
+        loc = data.get("location", {})
+        record = EmergencyEventDB(
+            timestamp=datetime.utcnow(),
+            event_id=data.get("event_id", f"EVT-{uuid.uuid4().hex[:6].upper()}"),
+            event_type=data.get("event_type", "ACCIDENT"),
+            severity=data.get("severity", "CRITICAL"),
+            road_name=data.get("road_name", data.get("road", "Main Road")),
+            latitude=float(loc.get("latitude", 13.0827)),
+            longitude=float(loc.get("longitude", 80.2707)),
+            emergency_vehicle_type=data.get("emergency_vehicle_type", "AMBULANCE"),
+            signal_before=data.get("signal_before", "Green 30s / Red 30s"),
+            signal_after=data.get("signal_after", "Green 50s / Red 15s"),
+            green_time_before=int(data.get("green_time_before", 30)),
+            green_time_after=int(data.get("green_time_after", 50)),
+            voice_alert_sent=bool(data.get("voice_alert_sent", True)),
+            citizen_alert_sent=bool(data.get("citizen_alert_sent", True)),
+            status=data.get("status", "ACTIVE")
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return record.to_dict()
+    except Exception as e:
+        logger.warning(f"Schema fallback saving emergency event: {e}")
+        try:
+            db.rollback()
+            record = EmergencyEventDB(
+                intersection_code=data.get("intersection_code", "INT-01"),
+                vehicle_type=data.get("vehicle_type", "AMBULANCE"),
+                priority=data.get("priority", 10),
+                active=data.get("active", True),
+                route_corridor_json=json.dumps(data.get("route_corridor", ["INT-01", "INT-03"])),
+                status_notes=data.get("status_notes", "Emergency Vehicle Green Corridor Cleared")
+            )
+            db.add(record)
+            db.commit()
+            db.refresh(record)
+            return record.to_dict()
+        except Exception as inner_e:
+            logger.error(f"Failed to save emergency event: {inner_e}")
+            return None
+    finally:
+        if should_close and db:
+            db.close()
+
 
 
 def save_decision_log(db: Session, decision_data: Dict[str, Any]):
