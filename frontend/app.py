@@ -761,15 +761,15 @@ with col5:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # Main Navigation Tabs
-tab1, tab_gis, tab2, tab3, tab4, tab5, tab_debug = st.tabs([
+tab1, tab_gis, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Executive Operations & Agent Flow", 
     "🗺️ GIS Map & Google Satellite", 
     "🚦 Signal Controllers & Preemption", 
     "📢 Citizen Broadcast Feed", 
     "📈 Analytics & Sustainability",
-    "🛡️ V2I Pre-Crash Safety",
-    "🐞 Data Lineage Debug"
+    "🛡️ V2I Pre-Crash Safety"
 ])
+
 
 
 # Extract new agent data
@@ -1451,48 +1451,7 @@ with tab5:
                 unsafe_allow_html=True
             )
 
-with tab_debug:
-    st.markdown("### 🐞 Developer Data Lineage & Agent Input Debug View")
-    st.caption("Inspect complete end-to-end data flow: DATA SOURCE ➔ RAW RESPONSE ➔ NORMALIZED RESPONSE ➔ TRAFFIC AGENT INPUT ➔ TRAFFIC AGENT OUTPUT")
 
-    lineage = get_data_lineage(road_name=selected_road, agent_output=full_report)
-
-    st.markdown("#### 1. 🌐 DATA SOURCE")
-    st.json(lineage.get("data_source"))
-
-    st.markdown("#### 2. 📥 RAW RESPONSE (API / Sensor Output)")
-    st.json(lineage.get("raw_response"))
-
-    st.markdown("#### 3. ⚙️ NORMALIZED & VALIDATED RESPONSE")
-    st.json(lineage.get("normalized_response"))
-
-    st.markdown("#### 4. 🤖 TRAFFIC MONITORING AGENT INPUT (Passed to CrewAI Task)")
-    st.code(lineage.get("agent_input"), language="text")
-
-    st.markdown("#### 5. 📄 TRAFFIC MONITORING AGENT OUTPUT (JSON Report)")
-    st.json(lineage.get("agent_output"))
-
-    st.markdown("---")
-    st.markdown("### 📊 TRAFFIC DATA DEBUG (State Change Verification)")
-    p_vc = prev_state.get("vehicle_count", "N/A") if prev_state else "N/A"
-    c_vc = current_telemetry.get("vehicle_count", "N/A")
-    p_spd = prev_state.get("average_speed", "N/A") if prev_state else "N/A"
-    c_spd = current_telemetry.get("average_speed", "N/A")
-    p_cg = prev_state.get("congestion_level", "N/A") if prev_state else "N/A"
-    c_cg = current_telemetry.get("congestion_level", "N/A")
-
-    st.markdown(f"""
-    - **Data Source**: `{current_telemetry.get('data_mode', 'Sensor Engine')}`
-    - **Last Fetch Time**: `{current_telemetry.get('time_display', 'HH:MM:SS')}`
-    - **Previous Vehicle Count**: `{p_vc}`
-    - **Current Vehicle Count**: `{c_vc}`
-    - **Previous Average Speed**: `{p_spd} km/h`
-    - **Current Average Speed**: `{c_spd} km/h`
-    - **Previous Congestion**: `{p_cg}%`
-    - **Current Congestion**: `{c_cg}%`
-    - **Data Changed**: `{"YES" if data_changed else "NO"}`
-    - **Agent Updated**: `YES`
-    """)
 
 
 
