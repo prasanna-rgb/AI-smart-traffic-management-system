@@ -44,10 +44,11 @@ def process_analytics_rule_based(traffic_report: Dict[str, Any], congestion_info
     perf_score = round(perf_score, 1)
 
     insights = [
-        f"Vehicle flow rate: {vehicles} vehicles/hour on {road}.",
+        f"Current road lane vehicle count: {vehicles} vehicles on {road}.",
         f"Estimated Carbon Footprint for this cycle: {carbon_emission} kg CO2.",
         f"Road Efficiency Index scored at {perf_score}/100."
     ]
+
 
     if signal_info.get("estimated_wait_time_reduction_pct", 0) > 20:
         insights.append(f"Dynamic signal timing saved approx. {round(vehicles * 0.08, 1)} kg CO2 emissions by reducing idle delay.")

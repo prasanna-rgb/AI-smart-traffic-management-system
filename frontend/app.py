@@ -433,7 +433,8 @@ if road_changed:
 
 if sim_mode == "Manual Scenario Injection":
     st.sidebar.markdown("#### Scenario Parameters")
-    man_vehicles = st.sidebar.slider("Vehicle Density (cars/hr)", 10, 150, 85)
+    man_vehicles = st.sidebar.slider("Current Road Lane Vehicle Count (cars on lane)", 10, 150, 85)
+
     man_speed = st.sidebar.slider("Average Speed (km/h)", 10, 80, 25)
     man_weather = st.sidebar.selectbox("Weather Condition", ["Clear", "Rain", "Fog", "Storm"])
     man_accident = st.sidebar.checkbox("⚠️ Flag Accident Event", value=False)
@@ -716,10 +717,11 @@ with col1:
     st.markdown(
         f"""
         <div class='metric-box'>
-            <div class='metric-head'>Vehicle Flow Rate</div>
+            <div class='metric-head'>Current Road Lane Vehicle Count</div>
             <div class='metric-body'>{vehicles_val}</div>
-            <div class='metric-sub'>vehicles / hour</div>
+            <div class='metric-sub'>vehicles on lane</div>
         </div>
+
         """,
         unsafe_allow_html=True
     )
@@ -1057,7 +1059,8 @@ with tab_scen:
     wcol1, wcol2, wcol3 = st.columns(3)
     with wcol1:
         sandbox_g_time = st.slider("Green Signal Duration (sec)", min_value=10, max_value=120, value=50, step=5)
-        sandbox_veh = st.slider("Traffic Volume (Vehicles/hr)", min_value=10, max_value=250, value=int(current_telemetry.get("vehicle_count", 90)), step=10)
+        sandbox_veh = st.slider("Current Road Lane Vehicle Count", min_value=10, max_value=250, value=int(current_telemetry.get("vehicle_count", 90)), step=10)
+
     with wcol2:
         sandbox_emerg = st.selectbox("Emergency Vehicle Status", ["None", "Ambulance (Medical Emergency)", "Fire Truck (Fire Response)", "Police Vehicle (Pursuit)"])
         sandbox_acc = st.checkbox("Accident Reported on Lane", value=bool(current_telemetry.get("accident", False)))
