@@ -1,9 +1,15 @@
 """
 Tools and Algorithms for Emergency Resource Allocation Agent (Backend Package).
+Retrieves available fleet ambulances and nearby hospitals, evaluates multi-attribute suitability scores,
+calculates total ETAs via Google Maps API (Ambulance -> Accident -> Hospital), and provides AI allocation recommendations.
 """
 
 import math
 import uuid
+import json
+import os
+import urllib.parse
+import urllib.request
 from typing import Dict, Any, List, Optional
 try:
     from crewai.tools import tool
@@ -163,6 +169,57 @@ class EmergencyResourceScorer:
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         return round(R * c, 2)
 
+    @staticmethod
+    def fetch_google_maps_route(origin_lat: float, origin_lon: float, dest_lat: float, dest_lon: float) -> Dict[str, Any]:
+        """Fetch live Google Maps Distance Matrix travel time and construct navigation URLs."""
+        api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+        nav_url = f"https://www.google.com/maps/dir/?api=1&origin={origin_lat},{origin_lon}&destination={dest_lat},{dest_lon}&travelmode=driving"
+        embed_url = f"https://maps.google.com/maps?q={dest_lat},{dest_lon}&t=&z=14&ie=UTF8&iwloc=&output=embed"
+
+        if not api_key or api_key.strip() in ["", "your_google_maps_api_key_here"]:
+            return {
+                "google_maps_active": False,
+                "google_maps_nav_url": nav_url,
+                "google_maps_embed_url": embed_url,
+                "travel_time_minutes": None,
+                "distance_km": None
+            }
+
+        try:
+            params = {
+                "origins": f"{origin_lat},{origin_lon}",
+                "destinations": f"{dest_lat},{dest_lon}",
+                "departure_time": "now",
+                "traffic_model": "best_guess",
+                "key": api_key
+            }
+            url = f"https://maps.googleapis.com/maps/api/distancematrix/json?{urllib.parse.urlencode(params)}"
+            req = urllib.request.Request(url, headers={"User-Agent": "SmartTrafficAI-Emergency/1.0"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                data = json.loads(resp.read().decode())
+                if data.get("status") == "OK" and data.get("rows"):
+                    elem = data["rows"][0]["elements"][0]
+                    if elem.get("status") == "OK":
+                        dist_km = round(elem.get("distance", {}).get("value", 0) / 1000.0, 2)
+                        dur_traffic_min = max(1, elem.get("duration_in_traffic", {}).get("value", elem.get("duration", {}).get("value", 0)) // 60)
+                        return {
+                            "google_maps_active": True,
+                            "google_maps_nav_url": nav_url,
+                            "google_maps_embed_url": embed_url,
+                            "travel_time_minutes": dur_traffic_min,
+                            "distance_km": dist_km
+                        }
+        except Exception:
+            pass
+
+        return {
+            "google_maps_active": False,
+            "google_maps_nav_url": nav_url,
+            "google_maps_embed_url": embed_url,
+            "travel_time_minutes": None,
+            "distance_km": None
+        }
+
     @classmethod
     def score_ambulance(cls, ambulance: Dict[str, Any], accident: Dict[str, Any], weights: Dict[str, float] = None) -> Dict[str, Any]:
         """Score candidate ambulance based on ETA, medical capability, traffic, distance, and availability."""
@@ -172,19 +229,16 @@ class EmergencyResourceScorer:
         acc_severity = str(accident.get("severity", accident.get("accident_severity", "MEDIUM"))).upper()
         traffic_density = str(accident.get("traffic_density", "MEDIUM")).upper()
 
-        dist_km = cls.calculate_distance(ambulance["latitude"], ambulance["longitude"], acc_lat, acc_lon)
-        if dist_km < 0.2:
-            dist_km = 0.5
-
-        speed_kmh = 45.0
-        if traffic_density == "HIGH":
-            speed_kmh = 30.0
-        elif traffic_density == "CRITICAL":
-            speed_kmh = 20.0
-        elif traffic_density == "LOW":
-            speed_kmh = 60.0
-
-        eta_minutes = max(2, int(round((dist_km / speed_kmh) * 60)))
+        gmaps_info = cls.fetch_google_maps_route(ambulance["latitude"], ambulance["longitude"], acc_lat, acc_lon)
+        if gmaps_info.get("google_maps_active") and gmaps_info.get("travel_time_minutes"):
+            eta_minutes = gmaps_info["travel_time_minutes"]
+            dist_km = gmaps_info["distance_km"]
+        else:
+            dist_km = cls.calculate_distance(ambulance["latitude"], ambulance["longitude"], acc_lat, acc_lon)
+            if dist_km < 0.2:
+                dist_km = 0.5
+            speed_kmh = 45.0 if traffic_density == "MEDIUM" else (30.0 if traffic_density == "HIGH" else 60.0)
+            eta_minutes = max(2, int(round((dist_km / speed_kmh) * 60)))
 
         s_eta = max(0, min(100, int((15 - eta_minutes) / 15 * 100)))
         
@@ -215,7 +269,8 @@ class EmergencyResourceScorer:
             "eta_minutes": eta_minutes,
             "traffic_density": traffic_density,
             "capability_rating": "HIGH" if s_cap >= 90 else ("MEDIUM" if s_cap >= 60 else "LOW"),
-            "score": final_score
+            "score": final_score,
+            "google_maps_nav_url": gmaps_info["google_maps_nav_url"]
         }
 
     @classmethod
@@ -227,12 +282,16 @@ class EmergencyResourceScorer:
         acc_severity = str(accident.get("severity", accident.get("accident_severity", "MEDIUM"))).upper()
         traffic_density = str(accident.get("traffic_density", "MEDIUM")).upper()
 
-        dist_km = cls.calculate_distance(hospital["latitude"], hospital["longitude"], acc_lat, acc_lon)
-        if dist_km < 0.2:
-            dist_km = 0.5
-
-        speed_kmh = 40.0 if traffic_density in ["HIGH", "CRITICAL"] else 55.0
-        eta_minutes = max(3, int(round((dist_km / speed_kmh) * 60)))
+        gmaps_info = cls.fetch_google_maps_route(acc_lat, acc_lon, hospital["latitude"], hospital["longitude"])
+        if gmaps_info.get("google_maps_active") and gmaps_info.get("travel_time_minutes"):
+            eta_minutes = gmaps_info["travel_time_minutes"]
+            dist_km = gmaps_info["distance_km"]
+        else:
+            dist_km = cls.calculate_distance(hospital["latitude"], hospital["longitude"], acc_lat, acc_lon)
+            if dist_km < 0.2:
+                dist_km = 0.5
+            speed_kmh = 40.0 if traffic_density in ["HIGH", "CRITICAL"] else 55.0
+            eta_minutes = max(3, int(round((dist_km / speed_kmh) * 60)))
 
         s_emerg = 100 if hospital.get("emergency_available", False) else 0
         has_icu = hospital.get("ICU_available", False) and hospital.get("beds_available", 0) > 0
@@ -258,12 +317,17 @@ class EmergencyResourceScorer:
         return {
             "hospital_id": hospital["hospital_id"],
             "hospital_name": hospital["hospital_name"],
+            "latitude": hospital["latitude"],
+            "longitude": hospital["longitude"],
             "distance_km": dist_km,
             "travel_time_minutes": eta_minutes,
             "icu_available": hospital.get("ICU_available", False),
             "trauma_center": hospital.get("trauma_center", False),
             "beds_available": hospital.get("beds_available", 0),
-            "score": final_score
+            "score": final_score,
+            "google_maps_nav_url": gmaps_info["google_maps_nav_url"],
+            "google_maps_embed_url": gmaps_info["google_maps_embed_url"],
+            "google_maps_active": gmaps_info["google_maps_active"]
         }
 
 
@@ -279,6 +343,8 @@ class ResourceAllocatorEngine:
         road_name = accident_data.get("road_name", accident_data.get("road", "Main Road"))
         severity = str(accident_data.get("severity", accident_data.get("accident_severity", "CRITICAL"))).upper()
         traffic = str(accident_data.get("traffic_density", "HIGH")).upper()
+        acc_lat = accident_data.get("latitude", 13.0827)
+        acc_lon = accident_data.get("longitude", 80.2707)
 
         amb_unavail = amb_unavailable or []
         hosp_unavail = hosp_unavailable or []
@@ -308,16 +374,19 @@ class ResourceAllocatorEngine:
         best_hosp = scored_hospitals[0]
 
         total_response_time = best_amb["eta_minutes"] + best_hosp["travel_time_minutes"]
-
         overall_score = round((best_amb["score"] * 0.5) + (best_hosp["score"] * 0.5), 1)
 
         recommended_route = f"{road_name} → Outer Ring Expressway → {best_hosp['hospital_name']}"
 
+        gmaps_nav_url = best_hosp.get("google_maps_nav_url", f"https://www.google.com/maps/dir/?api=1&origin={acc_lat},{acc_lon}&destination={best_hosp.get('latitude', 13.0900)},{best_hosp.get('longitude', 80.2800)}&travelmode=driving")
+        gmaps_embed_url = best_hosp.get("google_maps_embed_url", f"https://maps.google.com/maps?q={best_hosp.get('latitude', 13.0900)},{best_hosp.get('longitude', 80.2800)}&t=&z=14&ie=UTF8&iwloc=&output=embed")
+        gmaps_active = best_hosp.get("google_maps_active", False)
+
         reason = (
             f"Ambulance {best_amb['ambulance_id']} was selected because it provides the best balance between "
             f"response time ({best_amb['eta_minutes']} min), traffic conditions ({traffic}), and {best_amb['capability_rating']} medical capability. "
-            f"Hospital {best_hosp['hospital_name']} was selected because it has ICU availability and trauma-care capability "
-            f"while maintaining an acceptable travel time ({best_hosp['travel_time_minutes']} min)."
+            f"Hospital {best_hosp['hospital_name']} was selected as the optimal nearest facility with ICU & trauma-care capability "
+            f"and a travel time of {best_hosp['travel_time_minutes']} min via Google Maps routing."
         )
 
         res = {
@@ -342,11 +411,19 @@ class ResourceAllocatorEngine:
                 "icu_available": best_hosp["icu_available"],
                 "trauma_center": best_hosp["trauma_center"],
                 "beds_available": best_hosp["beds_available"],
+                "latitude": best_hosp.get("latitude", 13.0900),
+                "longitude": best_hosp.get("longitude", 80.2800),
+                "google_maps_nav_url": gmaps_nav_url,
+                "google_maps_embed_url": gmaps_embed_url,
+                "google_maps_active": gmaps_active,
                 "score": best_hosp["score"]
             },
 
             "total_estimated_time": total_response_time,
             "recommended_route": recommended_route,
+            "google_maps_nav_url": gmaps_nav_url,
+            "google_maps_embed_url": gmaps_embed_url,
+            "google_maps_api_active": gmaps_active,
             "decision_score": overall_score,
             "reason": reason,
 

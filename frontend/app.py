@@ -1175,8 +1175,41 @@ with tab_alloc:
             unsafe_allow_html=True
         )
 
+    # 2.5 GOOGLE MAPS API EMERGENCY NAVIGATION HUD
+    st.markdown("<br>##### 🗺️ GOOGLE MAPS LIVE EMERGENCY NAVIGATION ROUTE", unsafe_allow_html=True)
+    gmaps_nav_url = alloc_data.get("google_maps_nav_url") or sel_hosp.get("google_maps_nav_url") or f"https://www.google.com/maps/dir/?api=1&origin=13.0827,80.2707&destination={sel_hosp.get('latitude', 13.0900)},{sel_hosp.get('longitude', 80.2800)}&travelmode=driving"
+    gmaps_embed_url = alloc_data.get("google_maps_embed_url") or sel_hosp.get("google_maps_embed_url") or f"https://maps.google.com/maps?q={sel_hosp.get('latitude', 13.0900)},{sel_hosp.get('longitude', 80.2800)}&t=&z=14&ie=UTF8&iwloc=&output=embed"
+    gmaps_active = alloc_data.get("google_maps_api_active", False) or sel_hosp.get("google_maps_active", False)
+
+    gcol1, gcol2 = st.columns([2, 1])
+    with gcol1:
+        st.components.v1.html(
+            f'<iframe width="100%" height="280" frameborder="0" style="border: 1px solid #1E293B; border-radius: 10px;" src="{gmaps_embed_url}"></iframe>',
+            height=290
+        )
+    with gcol2:
+        st.markdown(
+            f"""
+            <div style="background: #0F172A; border: 1px solid #38BDF8; border-radius: 10px; padding: 1.1rem; color: white;">
+                <div style="font-weight: 700; color: #38BDF8; font-size: 0.95rem; margin-bottom: 8px;">🧭 GOOGLE MAPS EMERGENCY ROUTING</div>
+                <div style="font-size: 0.82rem; margin-bottom: 12px; color: #CBD5E1;">
+                    <div><b>API Connection Status:</b> <span style="color: {'#34D399' if gmaps_active else '#FBBF24'}; font-weight: 700;">{'🟢 Google Maps Distance Matrix API Active' if gmaps_active else '🟡 Telemetry GPS Navigation Active'}</span></div>
+                    <div><b>Destination Hospital:</b> <b style="color: #34D399;">{sel_hosp.get('hospital_name')}</b></div>
+                    <div><b>Estimated Travel Time:</b> <b style="color: #FBBF24;">{sel_hosp.get('travel_time_minutes')} mins</b></div>
+                </div>
+                <a href="{gmaps_nav_url}" target="_blank" style="text-decoration: none;">
+                    <div style="background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%); color: white !important; font-weight: 700; padding: 10px 16px; border-radius: 8px; font-size: 0.88rem; text-align: center; box-shadow: 0 4px 12px rgba(2,132,199,0.3);">
+                        🗺️ Open Live Navigation in Google Maps
+                    </div>
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
     # 3. AMBULANCE & HOSPITAL COMPARISON TABLES
     st.markdown("<br>##### 📊 AI AMBULANCE & HOSPITAL SUITABILITY COMPARISON TABLES", unsafe_allow_html=True)
+
     
     col_tbl1, col_tbl2 = st.columns(2)
     with col_tbl1:
