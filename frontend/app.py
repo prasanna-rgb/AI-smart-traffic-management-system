@@ -1175,37 +1175,95 @@ with tab_alloc:
             unsafe_allow_html=True
         )
 
-    # 2.5 GOOGLE MAPS API EMERGENCY NAVIGATION HUD
-    st.markdown("<br>##### 🗺️ GOOGLE MAPS LIVE EMERGENCY NAVIGATION ROUTE", unsafe_allow_html=True)
-    gmaps_nav_url = alloc_data.get("google_maps_nav_url") or sel_hosp.get("google_maps_nav_url") or f"https://www.google.com/maps/dir/?api=1&origin=13.0827,80.2707&destination={sel_hosp.get('latitude', 13.0900)},{sel_hosp.get('longitude', 80.2800)}&travelmode=driving"
-    gmaps_embed_url = alloc_data.get("google_maps_embed_url") or sel_hosp.get("google_maps_embed_url") or f"https://maps.google.com/maps?q={sel_hosp.get('latitude', 13.0900)},{sel_hosp.get('longitude', 80.2800)}&t=&z=14&ie=UTF8&iwloc=&output=embed"
+    # 2.5 GOOGLE MAPS LIVE EMERGENCY ROUTING (EMBEDDED IN WEBSITE)
+    st.markdown("<br>##### 🧭 GOOGLE MAPS LIVE EMERGENCY ROUTING (EMBEDDED IN WEBSITE)", unsafe_allow_html=True)
+    st.caption(f"Displays the exact driving route from the accident scene on {selected_road} to the nearest selected hospital ({sel_hosp.get('hospital_name')}) live inside the website.")
+
+    acc_coords = ROAD_COORDINATES.get(selected_road, {"lat": 13.0827, "lon": 80.2707})
+    acc_lat, acc_lon = acc_coords["lat"], acc_coords["lon"]
+    hosp_lat = sel_hosp.get("latitude", 13.0900)
+    hosp_lon = sel_hosp.get("longitude", 80.2800)
+    amb_lat = sel_amb.get("latitude", 13.0750)
+    amb_lon = sel_amb.get("longitude", 80.2600)
+
+    gmaps_route_embed_url = f"https://maps.google.com/maps?saddr={acc_lat},{acc_lon}&daddr={hosp_lat},{hosp_lon}&t=&z=14&ie=UTF8&output=embed"
+    gmaps_nav_url = f"https://www.google.com/maps/dir/?api=1&origin={acc_lat},{acc_lon}&destination={hosp_lat},{hosp_lon}&travelmode=driving"
     gmaps_active = alloc_data.get("google_maps_api_active", False) or sel_hosp.get("google_maps_active", False)
 
-    gcol1, gcol2 = st.columns([2, 1])
+    gcol1, gcol2 = st.columns([2.2, 1])
     with gcol1:
         st.components.v1.html(
-            f'<iframe width="100%" height="280" frameborder="0" style="border: 1px solid #1E293B; border-radius: 10px;" src="{gmaps_embed_url}"></iframe>',
-            height=290
+            f'<iframe width="100%" height="380" frameborder="0" style="border: 2px solid #38BDF8; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" src="{gmaps_route_embed_url}" allowfullscreen></iframe>',
+            height=390
         )
     with gcol2:
         st.markdown(
             f"""
-            <div style="background: #0F172A; border: 1px solid #38BDF8; border-radius: 10px; padding: 1.1rem; color: white;">
-                <div style="font-weight: 700; color: #38BDF8; font-size: 0.95rem; margin-bottom: 8px;">🧭 GOOGLE MAPS EMERGENCY ROUTING</div>
-                <div style="font-size: 0.82rem; margin-bottom: 12px; color: #CBD5E1;">
-                    <div><b>API Connection Status:</b> <span style="color: {'#34D399' if gmaps_active else '#FBBF24'}; font-weight: 700;">{'🟢 Google Maps Distance Matrix API Active' if gmaps_active else '🟡 Telemetry GPS Navigation Active'}</span></div>
-                    <div><b>Destination Hospital:</b> <b style="color: #34D399;">{sel_hosp.get('hospital_name')}</b></div>
+            <div style="background: #0F172A; border: 1px solid #38BDF8; border-radius: 12px; padding: 1.2rem; color: white;">
+                <div style="font-weight: 800; color: #38BDF8; font-size: 1.05rem; margin-bottom: 10px;">🗺️ GOOGLE MAPS ROUTE DATA</div>
+                <div style="font-size: 0.86rem; line-height: 1.7; margin-bottom: 14px; color: #CBD5E1;">
+                    <div><b>Origin Scene:</b> <span style="color: #F87171; font-weight: 700;">🚨 {selected_road} ({acc_lat:.4f}, {acc_lon:.4f})</span></div>
+                    <div><b>Nearest Hospital:</b> <span style="color: #34D399; font-weight: 700;">🏥 {sel_hosp.get('hospital_name')}</span></div>
+                    <div><b>Dispatch Ambulance:</b> <span style="color: #38BDF8; font-weight: 700;">🚑 {sel_amb.get('ambulance_id')}</span></div>
                     <div><b>Estimated Travel Time:</b> <b style="color: #FBBF24;">{sel_hosp.get('travel_time_minutes')} mins</b></div>
+                    <div><b>Routing Status:</b> <span style="color: #34D399; font-weight: 700;">🟢 LIVE GOOGLE MAPS PATH EMBEDDED</span></div>
                 </div>
                 <a href="{gmaps_nav_url}" target="_blank" style="text-decoration: none;">
-                    <div style="background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%); color: white !important; font-weight: 700; padding: 10px 16px; border-radius: 8px; font-size: 0.88rem; text-align: center; box-shadow: 0 4px 12px rgba(2,132,199,0.3);">
-                        🗺️ Open Live Navigation in Google Maps
+                    <div style="background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%); color: white !important; font-weight: 700; padding: 12px 18px; border-radius: 8px; font-size: 0.9rem; text-align: center; box-shadow: 0 4px 12px rgba(2,132,199,0.3);">
+                        ↗ Open Fullscreen Google Maps
                     </div>
                 </a>
             </div>
             """,
             unsafe_allow_html=True
         )
+
+    # Interactive PyDeck 3D Emergency Route Visualizer
+    st.markdown("###### 🌐 Interactive PyDeck 3D Emergency Route Visualizer")
+    pydeck_route_data = [
+        {"start_name": f"Ambulance {sel_amb.get('ambulance_id')}", "start": [amb_lon, amb_lat], "end_name": f"Accident on {selected_road}", "end": [acc_lon, acc_lat], "color": [56, 189, 248, 255]},
+        {"start_name": f"Accident on {selected_road}", "start": [acc_lon, acc_lat], "end_name": sel_hosp.get("hospital_name"), "end": [hosp_lon, hosp_lat], "color": [52, 211, 153, 255]}
+    ]
+
+    pydeck_nodes_data = [
+        {"name": f"🚑 Ambulance {sel_amb.get('ambulance_id')}", "coordinates": [amb_lon, amb_lat], "color": [56, 189, 248, 255], "radius": 150},
+        {"name": f"🚨 Accident Scene ({selected_road})", "coordinates": [acc_lon, acc_lat], "color": [248, 113, 113, 255], "radius": 200},
+        {"name": f"🏥 Hospital ({sel_hosp.get('hospital_name')})", "coordinates": [hosp_lon, hosp_lat], "color": [52, 211, 153, 255], "radius": 220}
+    ]
+
+    line_layer = pdk.Layer(
+        "LineLayer",
+        pydeck_route_data,
+        get_source_position="start",
+        get_target_position="end",
+        get_color="color",
+        get_width=6,
+        pickable=True
+    )
+
+    scatter_layer = pdk.Layer(
+        "ScatterplotLayer",
+        pydeck_nodes_data,
+        get_position="coordinates",
+        get_color="color",
+        get_radius="radius",
+        pickable=True
+    )
+
+    view_state = pdk.ViewState(
+        latitude=(acc_lat + hosp_lat) / 2.0,
+        longitude=(acc_lon + hosp_lon) / 2.0,
+        zoom=12.5,
+        pitch=45
+    )
+
+    r_map = pdk.Deck(
+        layers=[line_layer, scatter_layer],
+        initial_view_state=view_state,
+        tooltip={"text": "{name}\n{start_name} ➔ {end_name}"}
+    )
+    st.pydeck_chart(r_map, use_container_width=True)
+
 
     # 3. AMBULANCE & HOSPITAL COMPARISON TABLES
     st.markdown("<br>##### 📊 AI AMBULANCE & HOSPITAL SUITABILITY COMPARISON TABLES", unsafe_allow_html=True)
