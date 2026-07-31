@@ -63,51 +63,51 @@ ROAD_COORDINATES = {
     "Harbor View Park": {"lat": 12.9850, "lon": 77.5750}
 }
 
-# Inject High-Tech Cyber Dark CSS Theme
+# Inject High-Tech Cyber Dark CSS Theme - Sleek & Modern Glass Edition
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
     html, body, [class*="css"], .stApp {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-        background-color: #0B0F19 !important;
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        background-color: #090D16 !important;
         color: #F8FAFC !important;
     }
 
     /* Technical Dark Base Container */
     .stApp, [data-testid="stAppViewContainer"] {
-        background-color: #0B0F19 !important;
+        background-color: #090D16 !important;
         color: #F8FAFC !important;
     }
 
-    /* Streamlit Top Navbar Header Dark Mode Fix */
+    /* Streamlit Top Navbar Header Dark Mode */
     header[data-testid="stHeader"], [data-testid="stHeader"], .stHeader, [data-testid="stToolbar"], [data-testid="stDecoration"], nav, header {
-        background-color: #0B0F19 !important;
-        background: #0B0F19 !important;
+        background-color: #090D16 !important;
+        background: #090D16 !important;
         color: #F8FAFC !important;
     }
     header[data-testid="stHeader"] *, [data-testid="stHeader"] * {
         color: #F8FAFC !important;
     }
 
-    /* Top Navigation & Headings */
+    /* Headings */
     h1, h2, h3, h4, h5, h6, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
         color: #FFFFFF !important;
         font-weight: 700 !important;
+        letter-spacing: -0.01em;
     }
 
-
     p, span, label, legend, [data-testid="stWidgetLabel"] {
-        color: #E2E8F0 !important;
+        color: #CBD5E1 !important;
     }
 
     /* Subheaders & Captions */
     .stCaption, small, [data-testid="stCaptionContainer"] * {
-        color: #9CA3AF !important;
+        color: #94A3B8 !important;
         font-weight: 500 !important;
     }
 
-    /* BaseWeb Dropdown Popover Menus & Selectboxes (Fixes White Screen & Invisible Options) */
+    /* Dropdown Menus & Selectboxes */
     div[data-baseweb="popover"], div[data-baseweb="menu"], ul[role="listbox"], li[role="option"], [data-baseweb="popover"] *, [data-baseweb="menu"] * {
         background-color: #1E293B !important;
         color: #F8FAFC !important;
@@ -121,6 +121,7 @@ st.markdown("""
         background-color: #1E293B !important;
         color: #F8FAFC !important;
         border-color: #334155 !important;
+        border-radius: 8px !important;
     }
     div[data-baseweb="select"] svg {
         fill: #F8FAFC !important;
@@ -129,49 +130,49 @@ st.markdown("""
         color: #F8FAFC !important;
     }
 
-    /* Streamlit Alert Callouts (info, success, warning, error) */
+    /* Streamlit Alert Callouts */
     div[data-testid="stAlert"] {
-        background-color: #1E293B !important;
-        border: 1px solid #334155 !important;
-        border-radius: 8px !important;
+        background-color: #0F172A !important;
+        border: 1px solid #1E293B !important;
+        border-radius: 10px !important;
     }
     div[data-testid="stAlert"] p, div[data-testid="stAlert"] div, div[data-testid="stAlert"] span {
         color: #F8FAFC !important;
     }
 
-    /* Top Cyber Navigation Bar Header */
+    /* Top Navigation Bar Header */
     .top-nav {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: #111827 !important;
-        border: 1px solid #1F2937;
-        border-left: 4px solid #00F2FE;
-        padding: 0.9rem 1.4rem;
-        border-radius: 10px;
+        background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%) !important;
+        border: 1px solid #1E293B;
+        border-left: 4px solid #38BDF8;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
         margin-bottom: 1.2rem;
-        box-shadow: 0 4px 20px rgba(0, 242, 254, 0.05);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
 
     .brand-title {
         font-size: 1.35rem;
         font-weight: 800;
-        color: #F3F4F6 !important;
-        letter-spacing: -0.01em;
+        color: #FFFFFF !important;
+        letter-spacing: -0.02em;
     }
 
     .brand-sub {
         font-size: 0.8rem;
-        color: #9CA3AF !important;
+        color: #94A3B8 !important;
         font-family: 'JetBrains Mono', monospace;
     }
 
     .badge-online {
         background-color: rgba(16, 185, 129, 0.15) !important;
-        color: #10B981 !important;
+        color: #34D399 !important;
         border: 1px solid #059669;
-        padding: 4px 12px;
-        border-radius: 6px;
+        padding: 5px 14px;
+        border-radius: 20px;
         font-size: 0.78rem;
         font-weight: 700;
         font-family: 'JetBrains Mono', monospace;
@@ -179,31 +180,31 @@ st.markdown("""
 
     /* High-Tech Dark Metric Boxes */
     .metric-box {
-        background: #111827 !important;
-        border: 1px solid #1F2937;
-        border-radius: 10px;
+        background: #0F172A !important;
+        border: 1px solid #1E293B;
+        border-radius: 12px;
         padding: 1.1rem 1.3rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
         transition: transform 0.2s ease, border-color 0.2s ease;
     }
 
     .metric-box:hover {
         transform: translateY(-2px);
-        border-color: #00F2FE;
+        border-color: #38BDF8;
     }
 
     .metric-head {
-        color: #9CA3AF !important;
+        color: #94A3B8 !important;
         font-size: 0.72rem;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.06em;
         font-family: 'JetBrains Mono', monospace;
     }
 
     .metric-body {
-        color: #00F2FE !important;
-        font-size: 1.9rem;
+        color: #38BDF8 !important;
+        font-size: 1.85rem;
         font-weight: 800;
         margin-top: 0.2rem;
         font-family: 'JetBrains Mono', monospace;
@@ -211,17 +212,17 @@ st.markdown("""
 
     .metric-sub {
         font-size: 0.75rem;
-        color: #6B7280 !important;
+        color: #64748B !important;
         margin-top: 0.2rem;
     }
 
-    /* Alert Banners (Dark Tech Theme) */
+    /* Alert Banners */
     .banner-critical {
         background-color: #450A0A !important;
         border: 1px solid #EF4444;
         color: #FCA5A5 !important;
         padding: 0.9rem 1.2rem;
-        border-radius: 8px;
+        border-radius: 10px;
         font-weight: 600;
         margin-bottom: 1.2rem;
     }
@@ -235,7 +236,7 @@ st.markdown("""
         border: 1px solid #F59E0B;
         color: #FDE68A !important;
         padding: 0.9rem 1.2rem;
-        border-radius: 8px;
+        border-radius: 10px;
         font-weight: 600;
         margin-bottom: 1.2rem;
     }
@@ -244,39 +245,39 @@ st.markdown("""
         color: #FDE68A !important;
     }
 
-    /* Agent Row Cards (Dark Tech Theme) */
+    /* Agent Row Cards */
     .agent-row-card {
-        background: #111827 !important;
-        border: 1px solid #1F2937;
-        border-left: 3px solid #00F2FE;
+        background: #0F172A !important;
+        border: 1px solid #1E293B;
+        border-left: 4px solid #38BDF8;
         border-radius: 10px;
         padding: 1.1rem 1.3rem;
         margin-bottom: 0.9rem;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
 
     .agent-row-card p {
-        color: #D1D5DB !important;
+        color: #CBD5E1 !important;
     }
 
     .agent-title-text {
         font-size: 0.95rem;
         font-weight: 700;
-        color: #00F2FE !important;
+        color: #38BDF8 !important;
         font-family: 'JetBrains Mono', monospace;
     }
 
-    /* Sidebar Container Styling (Dark High Contrast) */
+    /* Sidebar Container Styling */
     [data-testid="stSidebar"], [data-testid="stSidebarNav"], section[data-testid="stSidebar"] {
-        background-color: #0D1322 !important;
-        border-right: 1px solid #1F2937 !important;
+        background-color: #0B0F19 !important;
+        border-right: 1px solid #1E293B !important;
     }
 
     [data-testid="stSidebar"] *, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label, [data-testid="stSidebar"] li, [data-testid="stSidebar"] strong, [data-testid="stSidebar"] div, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
         color: #F8FAFC !important;
     }
 
-    /* Sidebar Download Buttons & Action Buttons (Fixes White Button & Invisible Text) */
+    /* Sidebar Download Buttons & Action Buttons */
     [data-testid="stSidebar"] button, 
     [data-testid="stSidebar"] a, 
     [data-testid="stSidebar"] [data-testid="stDownloadButton"] a, 
@@ -291,14 +292,15 @@ st.markdown("""
         background-color: #1E293B !important;
         background: #1E293B !important;
         color: #38BDF8 !important;
-        border: 1px solid #00F2FE !important;
+        border: 1px solid #38BDF8 !important;
         border-radius: 8px !important;
         font-weight: 700 !important;
         text-decoration: none !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        box-shadow: 0 2px 8px rgba(0, 242, 254, 0.15) !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+        transition: all 0.2s ease !important;
     }
 
     [data-testid="stSidebar"] button *, 
@@ -318,80 +320,82 @@ st.markdown("""
     .stDownloadButton a:hover,
     button[kind="secondary"]:hover, 
     button[kind="primary"]:hover {
-        background-color: #00F2FE !important;
-        background: #00F2FE !important;
-        color: #0B0F19 !important;
-        border-color: #00F2FE !important;
-        box-shadow: 0 0 15px rgba(0, 242, 254, 0.5) !important;
+        background-color: #0284C7 !important;
+        background: #0284C7 !important;
+        color: #FFFFFF !important;
+        border-color: #38BDF8 !important;
+        box-shadow: 0 0 15px rgba(56, 189, 248, 0.4) !important;
     }
 
     [data-testid="stSidebar"] button:hover *, 
     [data-testid="stSidebar"] a:hover *, 
     [data-testid="stSidebar"] [data-testid="stDownloadButton"] a:hover *, 
     .stDownloadButton button:hover * {
-        color: #0B0F19 !important;
+        color: #FFFFFF !important;
     }
 
-    /* Form Text Inputs & Text Areas */
-
+    /* Form Inputs */
     div[data-baseweb="input"] input, textarea, div[data-baseweb="textarea"] textarea {
         background-color: #1E293B !important;
         color: #F8FAFC !important;
         border: 1px solid #334155 !important;
+        border-radius: 8px !important;
         font-size: 0.95rem !important;
     }
 
-    /* Code Blocks & Pre Blocks */
+    /* Code Blocks */
     div[data-testid="stCodeBlock"], pre, code, .stCodeBlock code {
         background-color: #0F172A !important;
         color: #38BDF8 !important;
-        border: 1px solid #334155 !important;
+        border: 1px solid #1E293B !important;
         border-radius: 8px !important;
     }
     div[data-testid="stCodeBlock"] * {
         color: #38BDF8 !important;
     }
 
-    /* Streamlit DataFrame Tables */
+    /* DataTables */
     [data-testid="stDataFrame"], div[data-testid="stTable"], table {
-        background-color: #111827 !important;
-        color: #F3F4F6 !important;
+        background-color: #0F172A !important;
+        color: #F8FAFC !important;
+        border-radius: 10px !important;
     }
 
     [data-testid="stDataFrame"] *, table * {
-        color: #F3F4F6 !important;
+        color: #F8FAFC !important;
     }
 
-    /* Tab Custom Styling (Dark Cyber Theme) */
+    /* Clean Sleek Navigation Tabs */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 6px;
-        background-color: #111827 !important;
-        padding: 6px;
-        border-radius: 8px;
-        border: 1px solid #1F2937;
+        gap: 8px;
+        background-color: #0F172A !important;
+        padding: 6px 10px;
+        border-radius: 12px;
+        border: 1px solid #1E293B;
     }
 
     .stTabs [data-baseweb="tab"] {
-        border-radius: 6px;
-        color: #9CA3AF !important;
+        border-radius: 8px;
+        color: #94A3B8 !important;
         font-weight: 600;
         font-size: 0.88rem;
-        padding: 6px 16px;
+        padding: 8px 16px;
+        transition: all 0.2s ease;
     }
 
     .stTabs [aria-selected="true"] {
-        background-color: #00F2FE !important;
-        color: #0B0F19 !important;
-        font-weight: 800 !important;
-        box-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
+        background-color: #0284C7 !important;
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
     }
 
-
     .stTabs [aria-selected="true"] * {
-        color: #0B0F19 !important;
+        color: #FFFFFF !important;
     }
 </style>
 """, unsafe_allow_html=True)
+
 
 # Top Cyber Navbar Header
 st.markdown(f"""
